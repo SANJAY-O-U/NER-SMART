@@ -1,0 +1,27 @@
+name: ner_smart_driver
+description: NER-SMART driver app — report a road incident to the NER-SMART backend.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.0
+  geolocator: ^11.0.0
+  cupertino_icons: ^1.0.6
+  # Phase 5 — offline-first field workflow
+  sqflite: ^2.3.3       # embedded local DB for the event/sync queue
+  path: ^1.9.0           # resolves the on-device sqflite database file path
+  connectivity_plus: ^6.0.5  # network-reachability signal (NOT backend availability — see OFFLINE_ARCHITECTURE.md)
+  uuid: ^4.4.0            # device-generated eventId, stable across retries
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

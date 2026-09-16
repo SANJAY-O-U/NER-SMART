@@ -59,29 +59,79 @@ async function request(path, options = {}) {
   return data;
 }
 
+/**
+ * Backends commonly wrap list responses (e.g. `{ data: [...] }` or
+ * `{ shipments: [...] }`) instead of returning a bare array. This
+ * normalizes any of those shapes to a plain array so components can
+ * always assume `.filter`/`.find`/`.map` are safe to call, regardless
+ * of how the backend teammate formatted the response.
+ */
+function toArray(payload, ...keys) {
+  if (Array.isArray(payload)) return payload;
+  for (const key of keys) {
+    if (payload && Array.isArray(payload[key])) return payload[key];
+  }
+  if (payload && Array.isArray(payload.data)) return payload.data;
+  return [];
+}
+
 /* ---------------- Shipments ---------------- */
-export const getShipments = () => request("/shipments");
+export const getShipments = () =>
+  request("/shipments").then((data) => toArray(data, "shipments"));
 export const getShipment = (id) => request(`/shipments/${id}`);
 export const createShipment = (payload) =>
   request("/shipments", { method: "POST", body: JSON.stringify(payload) });
 
 /* ---------------- Vehicles ---------------- */
-export const getVehicles = () => request("/vehicles");
+export const getVehicles = () =>
+  request("/vehicles").then((data) => toArray(data, "vehicles"));
 export const postVehicleLocation = (payload) =>
   request("/vehicles/location", { method: "POST", body: JSON.stringify(payload) });
 
 /* ---------------- Roads ---------------- */
-export const getRoads = () => request("/roads");
+export const getRoads = () =>
+  request("/roads").then((data) => toArray(data, "roads"));
 export const updateRoad = (id, payload) =>
   request(`/roads/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
 
 /* ---------------- Incidents ---------------- */
-export const getIncidents = () => request("/incidents");
+export const getIncidents = () =>
+  request("/incidents").then((data) => toArray(data, "incidents"));
 export const createIncident = (payload) =>
   request("/incidents", { method: "POST", body: JSON.stringify(payload) });
+export const updateIncidentStatus = (id, status) =>
+  request(`/incidents/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }).then(
+    (data) => (data && data.data) || data
+  );
+
+/* ---------------- Data Sources ---------------- */
+export const getDataSources = () =>
+  request("/datasources").then((data) => toArray(data, "datasources"));
+
+/* ---------------- Weather ---------------- */
+export const getWeatherForRoad = (roadId) =>
+  request(`/weather/road/${roadId}`).then((data) => (data && data.data) || data);
+
+/* ---------------- SACHET disaster alerts ---------------- */
+export const getSachetAlerts = () =>
+  request("/sachet/alerts").then((data) => toArray(data, "alerts"));
+export const getDisasterContextForRoad = (roadId) =>
+  request(`/sachet/road/${roadId}`).then((data) => (data && data.data) || data);
+
+/* ---------------- Accessibility ---------------- */
+export const getRoadAccessibility = (roadId) =>
+  request(`/roads/${roadId}/accessibility`).then((data) => (data && data.data) || data);
+
+/* ---------------- Incident Impact (Phase 6) ---------------- */
+export const getIncidentImpact = (incidentId) =>
+  request(`/incidents/${incidentId}/impact`).then((data) => (data && data.data) || data);
+
+/* ---------------- Demo ---------------- */
+export const resetDemo = () => request("/demo/reset", { method: "POST" });
 
 /* ---------------- Alerts ---------------- */
-export const getAlerts = () => request("/alerts");
+export const getAlerts = () =>
+  request("/alerts").then((data) => toArray(data, "alerts"));
 export const createAlert = (payload) =>
   request("/alerts", { method: "POST", body: JSON.stringify(payload) });
 
@@ -92,6 +142,12 @@ export const predictRisk = (payload) =>
 /* ---------------- Routing ---------------- */
 export const recommendRoute = (payload) =>
   request("/routes/recommend", { method: "POST", body: JSON.stringify(payload) });
+
+// Phase 4C — real, graph-based routing over the imported road network.
+export const recommendRealRoute = (payload) =>
+  request("/routes/recommend-real", { method: "POST", body: JSON.stringify(payload) }).then(
+    (data) => (data && data.data) || data
+  );
 
 /* ---------------- Simulation ---------------- */
 export const simulateLandslide = (payload) =>

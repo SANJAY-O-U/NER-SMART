@@ -3,8 +3,16 @@ const { success, failure } = require('../utils/response');
 const { createAlert } = require('../services/alertService');
 
 // GET /api/alerts
+// GET /api/alerts?roadId=...
+//
+// Minimal, additive extension (driver-app alert delivery): an optional
+// roadId filter on the SAME existing endpoint, rather than a new one.
+// Reuses the Alert model's existing roadId field (Phase 6) — no new
+// association logic, no new geographic algorithm.
 async function getAlerts(req, res) {
-  const alerts = await Alert.find().sort({ timestamp: -1 });
+  const { roadId } = req.query;
+  const query = roadId ? { roadId } : {};
+  const alerts = await Alert.find(query).sort({ timestamp: -1 });
   return success(res, alerts);
 }
 
