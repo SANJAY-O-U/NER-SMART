@@ -185,6 +185,47 @@ class ApiService {
     final data = (decoded is Map) ? decoded['data'] : null;
     return parseAlertsList(data);
   }
+
+  /// GET /api/roads/:roadId/accessibility
+  /// Returns the EXISTING accessibility contract exactly as the backend's
+  /// accessibility engine computes it ({ state, accessibilityScore,
+  /// confidence, explanation, evidence, ... }) — same endpoint the React
+  /// dashboard already consumes. This method does not interpret or
+  /// reshape `state`; the UI displays whatever value comes back.
+  static Future<Map<String, dynamic>> getRoadAccessibility(String roadId) async {
+    final uri = Uri.parse('$baseUrl/roads/$roadId/accessibility');
+
+    http.Response response;
+    try {
+      response = await http.get(uri).timeout(const Duration(seconds: 12));
+    } catch (e) {
+      throw ApiException(
+        'Could not reach the backend at $baseUrl. Is it running and reachable from this device?',
+        type: ApiErrorType.network,
+      );
+    }
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (_) {
+      throw ApiException(
+        'The backend returned an unreadable response (HTTP ${response.statusCode}).',
+        type: ApiErrorType.serverError,
+      );
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final message = (decoded is Map && decoded['error'] != null)
+          ? decoded['error'].toString()
+          : 'Accessibility lookup failed (${response.statusCode})';
+      throw ApiException(message, type: response.statusCode >= 500 ? ApiErrorType.serverError : ApiErrorType.unknown);
+    }
+
+    final data = (decoded is Map) ? decoded['data'] : null;
+    if (data is Map<String, dynamic>) return data;
+    throw ApiException('The backend returned an unexpected accessibility response shape.', type: ApiErrorType.serverError);
+  }
 }
 
 /// Pure — extracted so JSON-shape handling is directly unit-testable

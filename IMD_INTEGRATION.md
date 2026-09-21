@@ -126,11 +126,24 @@ fetches have ever completed. The `WeatherObservation` collection and its
 `(source, sourceRecordId, observedAt)` unique index (partial, only when
 `sourceRecordId` is a string) are designed to be idempotent once real
 fetches start: re-fetching the same station reading upserts rather than
-duplicates. A scheduled poller (respecting IMD's "use client-side caching
-to optimize performance during peak weather events" guideline, and the
-mission's "do not poll aggressively" instruction) is not yet built — that
-belongs in a future phase once credentials exist and real update cadence
-can be observed.
+duplicates.
+
+A scheduled poller now exists (`runWeatherIngestion` in
+`weatherController.js`, wired into `server.js` the same way as the
+verified SACHET poller), respecting IMD's "use client-side caching to
+optimize performance during peak weather events" guideline and the
+mission's "do not poll aggressively" instruction — but it is **disabled
+by default** (`IMD_WEATHER_POLL_INTERVAL_MINUTES=0`) and only starts if
+*both* `IMD_API_KEY` and `IMD_STATION_IDS` are set to real, confirmed
+values. It polls the AWS/ARG endpoint (`getAwsWeather`) rather than
+Current Weather, because AWS/ARG is the only one of the three modeled
+endpoints that returns real station coordinates, which
+`weatherRoadService`'s spatial `$near` association requires. No station
+ID is invented anywhere in this wiring — `IMD_STATION_IDS` must be
+populated with real IDs obtained via an authenticated
+`GET /api/v1/aws_data_mapping` call once credentials exist (see
+"Geographic limitations" below); until then the ingestion pass never
+runs and `WeatherObservation` stays empty, same as today.
 
 ## Failure behavior
 
@@ -182,3 +195,4 @@ presenting the data externally.
 | Station coverage for NER corridor | ⚠️ Unknown — mapping endpoints also require auth |
 | Rate limits | ⚠️ Not documented publicly beyond "use client-side caching" guidance |
 | Freshness SLA | ⚠️ Not documented — thresholds here are engineering judgement calls |
+| Ingestion wiring (fetch → persist `WeatherObservation`) | ✅ Built (`runWeatherIngestion`), but inert — requires real `IMD_API_KEY` and `IMD_STATION_IDS` to ever run |

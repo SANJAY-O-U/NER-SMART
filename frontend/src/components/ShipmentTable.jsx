@@ -33,7 +33,7 @@ export default function ShipmentTable({ shipments, vehicles, onSelectShipment, s
                 key={s.id}
                 onClick={() => onSelectShipment && onSelectShipment(s)}
                 className={`border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition ${
-                  isSelected ? "bg-teal-50" : ""
+                  isSelected ? "bg-brand-50" : ""
                 }`}
               >
                 <td className="py-2 pr-4 font-mono text-xs text-slate-600">{s.id}</td>

@@ -83,6 +83,39 @@ test('getCurrentWeather does not retry on a 401 (not a transient failure)', asyn
   });
 });
 
+test('getCurrentWeather handles a 403 forbidden response gracefully (does not throw, returns UNAVAILABLE)', async () => {
+  await withEnv({ IMD_API_KEY: 'unauthorized-key' }, async () => {
+    const fetchFn = async () => ({ ok: false, status: 403, json: async () => ({}) });
+    const result = await weatherService.getCurrentWeather('42314', { fetchFn });
+    assert.equal(result.status, 'UNAVAILABLE');
+    assert.equal(result.error, 'HTTP 403');
+    assert.equal(result.observation, null);
+  });
+});
+
+test('getCurrentWeather does not retry on a 403 (not a transient failure)', async () => {
+  await withEnv({ IMD_API_KEY: 'unauthorized-key' }, async () => {
+    let callCount = 0;
+    const fetchFn = async () => {
+      callCount += 1;
+      return { ok: false, status: 403, json: async () => ({}) };
+    };
+    await weatherService.getCurrentWeather('42314', { fetchFn });
+    assert.equal(callCount, 1);
+  });
+});
+
+test('getCurrentWeather classifies an aborted request as a timeout, not a generic error', async () => {
+  await withEnv({ IMD_API_KEY: 'test-key' }, async () => {
+    const fetchFn = async () => {
+      throw Object.assign(new Error('The operation was aborted'), { name: 'AbortError' });
+    };
+    const result = await weatherService.getCurrentWeather('42314', { fetchFn });
+    assert.equal(result.status, 'UNAVAILABLE');
+    assert.equal(result.error, 'timeout');
+  });
+});
+
 test('getCurrentWeather retries once on a transient 503, then succeeds', async () => {
   await withEnv({ IMD_API_KEY: 'test-key' }, async () => {
     let callCount = 0;

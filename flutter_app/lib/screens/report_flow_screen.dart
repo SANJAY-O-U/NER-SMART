@@ -7,6 +7,7 @@ import '../services/local_event_store.dart';
 import '../services/connectivity_service.dart';
 import '../services/sync_service.dart';
 import '../models/local_incident_event.dart';
+import '../theme/app_theme.dart';
 
 enum _Step { form, error }
 
@@ -221,11 +222,13 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Report Incident'),
-        backgroundColor: const Color(0xFF0F2942),
-        foregroundColor: Colors.white,
+        title: const Text('Report Incident', style: TextStyle(fontWeight: FontWeight.w700)),
+        backgroundColor: AppColors.background,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
       ),
       body: SafeArea(
         child: Padding(
@@ -253,8 +256,8 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.border),
+              borderRadius: BorderRadius.circular(AppRadius.md),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: DropdownButtonHideUnderline(
@@ -278,7 +281,7 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
               hintText: 'e.g. Severe road damage, landslide blocking one lane…',
               filled: true,
               fillColor: Colors.white,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
             ),
           ),
           const SizedBox(height: 20),
@@ -297,18 +300,19 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
             height: 52,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEF7B26),
+                backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
               ),
               onPressed: canSubmit ? _submit : null,
-              child: const Text('Capture Report', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              child: const Text('Capture Report', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
             ),
           ),
           const SizedBox(height: 8),
           const Text(
             'Your report is saved on this device immediately, even offline, and sent to the server automatically once connected.',
-            style: TextStyle(fontSize: 11, color: Colors.black45),
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
           ),
         ],
       ),
@@ -322,9 +326,9 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
       builder: (context, snapshot) {
         final status = snapshot.data ?? NetworkStatus.unknown;
         final (label, color) = switch (status) {
-          NetworkStatus.online => ('Online — reports sync immediately', Colors.green),
-          NetworkStatus.offline => ('Offline — reports will be captured and synced later', Colors.orange),
-          NetworkStatus.unknown => ('Connectivity unknown', Colors.grey),
+          NetworkStatus.online => ('Online — reports sync immediately', AppColors.success),
+          NetworkStatus.offline => ('Offline — reports will be captured and synced later', AppColors.warning),
+          NetworkStatus.unknown => ('Connectivity unknown', AppColors.neutral),
         };
         return Row(
           children: [
@@ -372,8 +376,8 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(
@@ -406,16 +410,16 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.red.shade50,
-          border: Border.all(color: Colors.red.shade200),
-          borderRadius: BorderRadius.circular(10),
+          color: const Color(0xFFFEF0F0),
+          border: Border.all(color: AppColors.danger.withOpacity(0.3)),
+          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.error_outline, size: 18, color: Colors.red.shade700),
+                Icon(Icons.error_outline, size: 18, color: AppColors.danger),
                 const SizedBox(width: 8),
                 const Expanded(child: Text('Location error', style: TextStyle(fontWeight: FontWeight.w600))),
               ],
@@ -440,22 +444,22 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(isLive ? Icons.gps_fixed : Icons.map, size: 16, color: isLive ? Colors.green : Colors.purple),
+              Icon(isLive ? Icons.gps_fixed : Icons.map, size: 16, color: isLive ? AppColors.success : AppColors.primary),
               const SizedBox(width: 6),
               Text(
                 isLive ? 'LIVE GPS' : 'NER DEMO',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
-                  color: isLive ? Colors.green.shade700 : Colors.purple.shade700,
+                  color: isLive ? AppColors.success : AppColors.primary,
                 ),
               ),
               if (!isLive) ...[
@@ -494,7 +498,7 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
     if (ConnectivityService.current == NetworkStatus.offline) {
       return const Text(
         'Nearest-road preview unavailable offline — road matching happens automatically once your report syncs.',
-        style: TextStyle(fontSize: 12, color: Colors.black45, fontStyle: FontStyle.italic),
+        style: TextStyle(fontSize: 12, color: AppColors.textMuted, fontStyle: FontStyle.italic),
       );
     }
     if (_matchingRoad) {
@@ -507,20 +511,20 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
       );
     }
     if (_roadMatchError != null) {
-      return Text(_roadMatchError!, style: const TextStyle(fontSize: 12, color: Colors.black45));
+      return Text(_roadMatchError!, style: const TextStyle(fontSize: 12, color: AppColors.textMuted));
     }
     final match = _roadMatch;
     if (match == null) return const SizedBox.shrink();
     if (match['matched'] != true) {
       return Text(
         match['message']?.toString() ?? 'No nearby road found.',
-        style: const TextStyle(fontSize: 12, color: Colors.black45),
+        style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
       );
     }
     final road = match['road'] as Map<String, dynamic>?;
     return Text(
       'Nearest road: ${road?['name'] ?? 'Unknown'} (${match['distanceMeters']}m, ${match['confidence']} confidence)',
-      style: const TextStyle(fontSize: 12, color: Colors.black54),
+      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
     );
   }
 
@@ -532,7 +536,7 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
         children: [
           const Row(
             children: [
-              Icon(Icons.check_circle, color: Colors.green, size: 28),
+              Icon(Icons.check_circle, color: AppColors.success, size: 28),
               SizedBox(width: 10),
               Text('Report Captured', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             ],
@@ -540,7 +544,7 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
           const SizedBox(height: 6),
           const Text(
             'Saved on this device. This is true whether or not it has reached the server yet.',
-            style: TextStyle(fontSize: 12, color: Colors.black54),
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 20),
           _resultCard([
@@ -562,7 +566,7 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F2942), foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.textPrimary, foregroundColor: Colors.white, elevation: 0),
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('Back to Home'),
             ),
@@ -574,11 +578,11 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
 
   Widget _buildSyncStatusCard(LocalIncidentEvent event) {
     final (label, color, icon) = switch (event.syncStatus) {
-      SyncStatus.localOnly => ('Captured locally — preparing to sync', Colors.blueGrey, Icons.save),
-      SyncStatus.syncPending => ('Sync pending', Colors.orange, Icons.hourglass_bottom),
-      SyncStatus.syncing => ('Syncing to server…', Colors.blue, Icons.sync),
-      SyncStatus.synced => ('Synced to server ✓', Colors.green, Icons.cloud_done),
-      SyncStatus.syncFailed => ('Sync failed — retained on device, will retry', Colors.red, Icons.cloud_off),
+      SyncStatus.localOnly => ('Captured locally — preparing to sync', AppColors.neutral, Icons.save),
+      SyncStatus.syncPending => ('Sync pending', AppColors.warning, Icons.hourglass_bottom),
+      SyncStatus.syncing => ('Syncing to server…', AppColors.primary, Icons.sync),
+      SyncStatus.synced => ('Synced to server ✓', AppColors.success, Icons.cloud_done),
+      SyncStatus.syncFailed => ('Sync failed — retained on device, will retry', AppColors.danger, Icons.cloud_off),
     };
 
     return Container(
@@ -587,7 +591,7 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
       decoration: BoxDecoration(
         color: color.withOpacity(0.08),
         border: Border.all(color: color.withOpacity(0.3)),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -607,7 +611,7 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
             const SizedBox(height: 6),
             Text('Attempts: ${event.retryCount}', style: const TextStyle(fontSize: 12)),
             if (event.lastSyncError != null)
-              Text(event.lastSyncError!, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+              Text(event.lastSyncError!, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
           ],
         ],
       ),
@@ -630,13 +634,13 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
   Color _tierColor(GpsQualityTier? tier) {
     switch (tier) {
       case GpsQualityTier.high:
-        return Colors.green.shade700;
+        return AppColors.success;
       case GpsQualityTier.medium:
-        return Colors.orange.shade700;
+        return AppColors.warning;
       case GpsQualityTier.low:
-        return Colors.red.shade700;
+        return AppColors.danger;
       default:
-        return Colors.black54;
+        return AppColors.textSecondary;
     }
   }
 
@@ -645,7 +649,7 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, color: Colors.red, size: 40),
+          const Icon(Icons.error_outline, color: AppColors.danger, size: 40),
           const SizedBox(height: 16),
           Text(_errorMessage ?? 'Something went wrong.', textAlign: TextAlign.center, style: const TextStyle(fontSize: 15)),
           const SizedBox(height: 24),
@@ -661,8 +665,8 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(children: rows),
     );
@@ -674,7 +678,7 @@ class _ReportFlowScreenState extends State<ReportFlowScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.black54)),
+          Text(label, style: const TextStyle(color: AppColors.textSecondary)),
           Flexible(child: Text(value, textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w600))),
         ],
       ),
@@ -694,19 +698,19 @@ class _ModeButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(AppRadius.md),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFF0F2942) : Colors.white,
-          border: Border.all(color: selected ? const Color(0xFF0F2942) : Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(10),
+          color: selected ? AppColors.primary : Colors.white,
+          border: Border.all(color: selected ? AppColors.primary : AppColors.border),
+          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
         child: Column(
           children: [
-            Icon(icon, size: 18, color: selected ? Colors.white : Colors.black54),
+            Icon(icon, size: 18, color: selected ? Colors.white : AppColors.textSecondary),
             const SizedBox(height: 4),
-            Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: selected ? Colors.white : Colors.black54)),
+            Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: selected ? Colors.white : AppColors.textSecondary)),
           ],
         ),
       ),

@@ -1,9 +1,9 @@
 const STATUS_STYLE = {
   LIVE: "bg-emerald-100 text-emerald-700",
-  CACHED: "bg-sky-100 text-sky-700",
+  CACHED: "bg-slate-200 text-slate-700",
   STALE: "bg-amber-100 text-amber-700",
   UNAVAILABLE: "bg-slate-200 text-slate-600",
-  DEMO: "bg-purple-100 text-purple-700",
+  DEMO: "bg-brand-100 text-brand-700",
 };
 
 function timeAgo(timestamp) {

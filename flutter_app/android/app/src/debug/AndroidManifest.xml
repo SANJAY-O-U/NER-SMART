@@ -4,4 +4,16 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- DEBUG BUILDS ONLY (this file is merged only into debug builds,
+         never release): Android 9+ (API 28+, the default target SDK for
+         current Flutter) blocks plaintext HTTP by default. The dev
+         backend at 10.0.2.2:5000 (the emulator's alias for the host
+         machine's loopback) is plain HTTP, not HTTPS, so without this the
+         app's own HTTP client throws a cleartext-blocked error that
+         api_service.dart reports as "Could not reach the backend at
+         http://10.0.2.2:5000" — indistinguishable from the backend
+         actually being unreachable. This does not affect release builds
+         and does not change the base URL or introduce any new host. -->
+    <application android:usesCleartextTraffic="true" />
 </manifest>

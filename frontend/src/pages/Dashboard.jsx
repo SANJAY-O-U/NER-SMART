@@ -25,6 +25,7 @@ import {
   getWeatherForRoad,
   getDisasterContextForRoad,
   getRoadAccessibility,
+  resetDemo,
 } from "../services/api";
 
 // Poll interval for picking up new driver-reported incidents without
@@ -59,6 +60,15 @@ export default function Dashboard() {
   const [roadWeather, setRoadWeather] = useState(null);
   const [disasterContext, setDisasterContext] = useState(null);
   const [accessibility, setAccessibility] = useState(null);
+
+  // Demo-reset-only state (Phase: fresh demo reset workflow). resetting/
+  // resetError drive the Header's RESET DEMO button; incidentPanelKey is
+  // incremented on every reset to force IncidentPanel to remount — the
+  // simplest, safest way to clear its own internal state (expanded row,
+  // cached impact fetches) without reaching into that component.
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState(null);
+  const [incidentPanelKey, setIncidentPanelKey] = useState(0);
 
   const loadAll = useCallback(async ({ silent = false } = {}) => {
     if (silent) setRefreshing(true);
@@ -168,6 +178,15 @@ export default function Dashboard() {
     };
   }, [selectedRoadId]);
 
+  // Fix (frontend-only, no business logic touched): a landslide
+  // simulation's result/error belongs only to the road it was run for.
+  // Without this, switching the road dropdown could leave a previous
+  // road's stale SIMULATE result visible under a newly-selected road.
+  useEffect(() => {
+    setSimulationResult(null);
+    setSimulationError(null);
+  }, [selectedRoadId]);
+
   // Lightweight polling so a driver-reported incident shows up on the
   // dashboard without the officer manually refreshing. Silent refresh only
   // touches incidents to avoid flashing the rest of the dashboard.
@@ -227,10 +246,54 @@ export default function Dashboard() {
     }
   };
 
+  // Fresh demo reset workflow: calls the EXISTING, APP_MODE=demo-guarded
+  // POST /api/demo/reset (unchanged — it already wipes/reseeds incidents,
+  // alerts, and demo-only roads/shipments/vehicles correctly; see
+  // DEMO_RUN.md). This handler's only job is making the DASHBOARD reflect
+  // that fresh backend state immediately, rather than waiting on the next
+  // 6s incident poll or a stale selectedRoadId pointing at a road that no
+  // longer exists after reseeding.
+  const handleResetDemo = async () => {
+    setResetting(true);
+    setResetError(null);
+    try {
+      await resetDemo();
+
+      // Clear every piece of transient, selection-dependent state BEFORE
+      // reloading — otherwise a stale selectedRoadId (the old prototype
+      // road's Mongo _id no longer exists post-reseed) would keep the
+      // now-orphaned accessibility/weather/disaster-context data on
+      // screen instead of re-resolving against the fresh roads list.
+      setSelectedShipmentId(null);
+      setSelectedRoadId(null);
+      setRouteResult(null);
+      setRouteError(null);
+      setRealRouteGeometry(null);
+      setSimulationResult(null);
+      setSimulationError(null);
+      setRoadWeather(null);
+      setDisasterContext(null);
+      setAccessibility(null);
+      setIncidentPanelKey((k) => k + 1); // forces IncidentPanel to remount, clearing its own internal state
+
+      await loadAll();
+      // Data sources rarely change, but a reset is a natural moment to
+      // confirm the dashboard is showing current backend state, not a
+      // hardcoded/leftover value.
+      getDataSources()
+        .then(setDataSources)
+        .catch(() => {});
+    } catch (err) {
+      setResetError(err.message || "Demo reset failed.");
+    } finally {
+      setResetting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <Header onRefresh={() => loadAll({ silent: true })} refreshing={refreshing} />
+        <Header onRefresh={() => loadAll({ silent: true })} refreshing={refreshing} onResetDemo={handleResetDemo} resetting={resetting} resetError={resetError} />
         <LoadingSpinner label="Loading command center…" />
       </div>
     );
@@ -239,7 +302,7 @@ export default function Dashboard() {
   if (error) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <Header onRefresh={() => loadAll({ silent: true })} refreshing={refreshing} />
+        <Header onRefresh={() => loadAll({ silent: true })} refreshing={refreshing} onResetDemo={handleResetDemo} resetting={resetting} resetError={resetError} />
         <ErrorMessage message={error} onRetry={() => loadAll()} />
       </div>
     );
@@ -247,14 +310,24 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Header onRefresh={() => loadAll({ silent: true })} refreshing={refreshing} />
+      <Header onRefresh={() => loadAll({ silent: true })} refreshing={refreshing} onResetDemo={handleResetDemo} resetting={resetting} resetError={resetError} />
 
       <main className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-[1600px] mx-auto">
-        <KPISection shipments={shipments} roads={roads} vehicles={vehicles} />
+        {/* OPERATIONAL OVERVIEW — compact KPI row, all values from real fetched state */}
+        <KPISection
+          shipments={shipments}
+          roads={roads}
+          vehicles={vehicles}
+          incidents={incidents}
+          alerts={alerts}
+          dataSources={dataSources}
+        />
 
+        {/* MAIN WORKSPACE — map is the visual anchor; alerts are the most
+            visually prominent dynamic panel alongside it. */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
           <div className="lg:col-span-2 space-y-4 md:space-y-6">
-            <Card title="Live Network Map" className="h-[420px] p-0 overflow-hidden">
+            <Card title="NER Map" subtitle="Real road geometry · incidents · facilities" className="h-[440px] p-0 overflow-hidden">
               <MapView
                 roads={roads}
                 vehicles={vehicles}
@@ -276,49 +349,54 @@ export default function Dashboard() {
             </Card>
           </div>
 
-          <div className="space-y-4 md:space-y-6">
-            <Card title="Incident Reports" className="max-h-[480px] overflow-hidden">
-              <IncidentPanel
-                incidents={incidents}
-                onUpdateStatus={handleUpdateIncidentStatus}
-                updatingId={updatingIncidentId}
-              />
-            </Card>
-
-            <Card title="Alerts">
-              <AlertPanel alerts={alerts} />
-            </Card>
-
-            <Card title="Road Risk">
-              <RoadRiskCard
-                roads={roads}
-                selectedRoadId={selectedRoadId}
-                onSelectRoad={setSelectedRoadId}
-                onSimulate={handleSimulateLandslide}
-                simulating={simulating}
-                simulationResult={simulationResult}
-                simulationError={simulationError}
-                weather={roadWeather}
-                disasterContext={disasterContext}
-                accessibility={accessibility}
-              />
-            </Card>
-
-            <Card title="Route Recommendation">
-              <RouteRecommendationCard
-                onAnalyze={handleAnalyzeRoute}
-                analyzing={analyzing}
-                result={routeResult}
-                error={routeError}
-                onRealRoute={setRealRouteGeometry}
-              />
-            </Card>
-
-            <Card title="Data Sources">
-              <DataSourceStatus sources={dataSources} />
-            </Card>
-          </div>
+          <Card title="Operational Alerts" subtitle="Live from the backend alert pipeline">
+            <AlertPanel alerts={alerts} roads={roads} />
+          </Card>
         </div>
+
+        {/* SECOND ROW — road-level accessibility/risk alongside the
+            incident-level operational impact trace. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+          <Card title="Road Intelligence" subtitle="Accessibility · risk · evidence · confidence">
+            <RoadRiskCard
+              roads={roads}
+              selectedRoadId={selectedRoadId}
+              onSelectRoad={setSelectedRoadId}
+              onSimulate={handleSimulateLandslide}
+              simulating={simulating}
+              simulationResult={simulationResult}
+              simulationError={simulationError}
+              weather={roadWeather}
+              disasterContext={disasterContext}
+              accessibility={accessibility}
+            />
+          </Card>
+
+          <Card title="Incident Reports" subtitle="Operational impact per incident" className="max-h-[520px] overflow-hidden">
+            <IncidentPanel
+              key={incidentPanelKey}
+              incidents={incidents}
+              onUpdateStatus={handleUpdateIncidentStatus}
+              updatingId={updatingIncidentId}
+            />
+          </Card>
+        </div>
+
+        {/* ROUTE RECOMMENDATIONS */}
+        <Card title="Route Recommendations" subtitle="Modeled risk heuristic — not a live-traffic ETA">
+          <RouteRecommendationCard
+            onAnalyze={handleAnalyzeRoute}
+            analyzing={analyzing}
+            result={routeResult}
+            error={routeError}
+            onRealRoute={setRealRouteGeometry}
+          />
+        </Card>
+
+        {/* DATA SOURCES / SYSTEM HEALTH */}
+        <Card title="Data Sources · System Health" subtitle="Status reported directly by the backend — never inferred here">
+          <DataSourceStatus sources={dataSources} />
+        </Card>
       </main>
     </div>
   );

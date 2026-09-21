@@ -48,7 +48,7 @@ function OperationalImpactPanel({ impact, loading, error }) {
   const { road, accessibility, accessibilityWithoutThisIncident, alerts, routeImpactNote } = impact;
 
   return (
-    <div className="text-xs bg-indigo-50 border border-indigo-200 rounded-md p-2.5 space-y-2 mt-1">
+    <div className="text-xs bg-slate-50 border border-slate-200 rounded-md p-2.5 space-y-2 mt-1">
       <p className="font-semibold text-slate-700">Operational Impact</p>
 
       {road ? (
@@ -92,7 +92,7 @@ function OperationalImpactPanel({ impact, loading, error }) {
       )}
 
       {alerts && alerts.length > 0 ? (
-        <div className="pt-1 border-t border-indigo-200">
+        <div className="pt-1 border-t border-slate-200">
           <p className="text-slate-600 font-medium">Alerts generated:</p>
           <ul className="space-y-0.5">
             {alerts.map((a) => (
@@ -106,7 +106,7 @@ function OperationalImpactPanel({ impact, loading, error }) {
         <p className="text-slate-400">No alerts generated for this incident yet.</p>
       )}
 
-      <p className="text-slate-400 italic pt-1 border-t border-indigo-200">{routeImpactNote}</p>
+      <p className="text-slate-400 italic pt-1 border-t border-slate-200">{routeImpactNote}</p>
     </div>
   );
 }
@@ -166,7 +166,7 @@ export default function IncidentPanel({ incidents, onUpdateStatus, updatingId })
                 <span className="text-sm font-semibold text-slate-800">{incident.type}</span>
                 <StatusBadge status={incident.severity} />
                 {incident.source === "DRIVER_APP" && (
-                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
                     DRIVER REPORT
                   </span>
                 )}
@@ -175,7 +175,7 @@ export default function IncidentPanel({ incidents, onUpdateStatus, updatingId })
                     className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
                       incident.locationMode === "LIVE_GPS"
                         ? "bg-emerald-100 text-emerald-700"
-                        : "bg-purple-100 text-purple-700"
+                        : "bg-brand-100 text-brand-700"
                     }`}
                   >
                     {incident.locationMode === "LIVE_GPS" ? "LIVE GPS" : "NER DEMO"}
@@ -219,7 +219,7 @@ export default function IncidentPanel({ incidents, onUpdateStatus, updatingId })
                 {incident.roadId && (
                   <button
                     onClick={() => toggleImpact(incident.id)}
-                    className="text-xs font-medium px-2.5 py-1 rounded-md border border-indigo-300 text-indigo-700 hover:bg-indigo-50 transition"
+                    className="text-xs font-medium px-2.5 py-1 rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50 transition"
                   >
                     {isExpanded ? "Hide Impact" : "View Impact"}
                   </button>
@@ -228,7 +228,7 @@ export default function IncidentPanel({ incidents, onUpdateStatus, updatingId })
                   <button
                     onClick={() => onUpdateStatus(incident.id, flow.next)}
                     disabled={updatingId === incident.id}
-                    className="text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-50 transition"
+                    className="text-xs font-semibold px-2.5 py-1 rounded-md bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-50 transition"
                   >
                     {updatingId === incident.id ? "Updating…" : flow.label}
                   </button>

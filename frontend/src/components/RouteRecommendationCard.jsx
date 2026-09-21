@@ -20,7 +20,7 @@ function RealRouteCard({ routeKey, route }) {
     );
   }
   return (
-    <div className="text-xs bg-teal-50 border border-teal-200 rounded-md p-2 space-y-1">
+    <div className="text-xs bg-slate-50 border border-slate-200 rounded-md p-2 space-y-1">
       <div className="flex items-center justify-between">
         <span className="font-semibold text-slate-700">{ROUTE_LABELS[routeKey]}</span>
         {route.riskScore !== null && <RiskBadge score={Math.round(route.riskScore * 100)} />}
@@ -35,7 +35,7 @@ function RealRouteCard({ routeKey, route }) {
         · Confidence: {route.confidence || "—"}
       </p>
       {route.reasons?.length > 0 && (
-        <ul className="text-slate-500 space-y-0.5 pt-1 border-t border-teal-200">
+        <ul className="text-slate-500 space-y-0.5 pt-1 border-t border-slate-200">
           {route.reasons.slice(0, 4).map((r, i) => (
             <li key={i}>⚠ {r}</li>
           ))}
@@ -102,13 +102,13 @@ export default function RouteRecommendationCard({ onAnalyze, analyzing, result, 
       <div className="flex rounded-md overflow-hidden border border-slate-300 text-xs">
         <button
           onClick={() => setMode("demo")}
-          className={`flex-1 py-1.5 font-semibold ${mode === "demo" ? "bg-[#1C7293] text-white" : "bg-white text-slate-600"}`}
+          className={`flex-1 py-1.5 font-semibold ${mode === "demo" ? "bg-brand-500 text-white" : "bg-white text-slate-600"}`}
         >
           Demo
         </button>
         <button
           onClick={() => setMode("real")}
-          className={`flex-1 py-1.5 font-semibold ${mode === "real" ? "bg-[#1C7293] text-white" : "bg-white text-slate-600"}`}
+          className={`flex-1 py-1.5 font-semibold ${mode === "real" ? "bg-brand-500 text-white" : "bg-white text-slate-600"}`}
         >
           Real Road Network
         </button>
@@ -145,7 +145,7 @@ export default function RouteRecommendationCard({ onAnalyze, analyzing, result, 
           <button
             onClick={() => onAnalyze(form)}
             disabled={analyzing || !form.origin || !form.destination}
-            className="w-full text-sm font-semibold px-3 py-2 rounded-md bg-[#1C7293] text-white hover:bg-[#155a74] disabled:opacity-50 transition"
+            className="w-full text-sm font-semibold px-3 py-2 rounded-md bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-50 transition"
           >
             {analyzing ? "Analyzing…" : "ANALYZE ROUTE"}
           </button>
@@ -153,7 +153,7 @@ export default function RouteRecommendationCard({ onAnalyze, analyzing, result, 
           {error && <p className="text-xs text-red-600">{error}</p>}
 
           {result && (
-            <div className="text-xs bg-teal-50 border border-teal-200 rounded-md p-2 space-y-1">
+            <div className="text-xs bg-slate-50 border border-slate-200 rounded-md p-2 space-y-1">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-slate-700">{result.recommendedRoute}</span>
                 <RiskBadge score={result.risk} />
@@ -195,7 +195,7 @@ export default function RouteRecommendationCard({ onAnalyze, analyzing, result, 
           <button
             onClick={analyzeReal}
             disabled={realAnalyzing}
-            className="w-full text-sm font-semibold px-3 py-2 rounded-md bg-[#1C7293] text-white hover:bg-[#155a74] disabled:opacity-50 transition"
+            className="w-full text-sm font-semibold px-3 py-2 rounded-md bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-50 transition"
           >
             {realAnalyzing ? "Computing…" : "COMPUTE REAL ROUTE"}
           </button>

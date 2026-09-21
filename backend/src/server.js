@@ -5,6 +5,7 @@ const connectDB = require('./config/db');
 const Road = require('./models/Road');
 const { registerSource } = require('./services/dataSourceRegistry');
 const { hasCredentials } = require('./services/weatherService');
+const { runWeatherIngestion } = require('./controllers/weatherController');
 const { ingestSachetAlerts } = require('./services/sachetService');
 const { persistAlert, expireOldAlerts } = require('./controllers/sachetController');
 
@@ -17,6 +18,18 @@ const PORT = process.env.PORT || 5000;
 // /api/sachet/ingest endpoint can still be triggered manually/by a
 // separate cron in that case).
 const SACHET_POLL_INTERVAL_MINUTES = Number(process.env.SACHET_POLL_INTERVAL_MINUTES ?? 15);
+
+// Phase 2: IMD weather ingestion. Defaults to 0 (disabled) — unlike
+// SACHET, there are no verified NER station IDs yet (see
+// IMD_INTEGRATION.md "Geographic limitations"), so auto-polling stays
+// off until an operator explicitly sets both IMD_API_KEY and
+// IMD_STATION_IDS to real, confirmed values. No station ID is invented
+// here as a default.
+const IMD_WEATHER_POLL_INTERVAL_MINUTES = Number(process.env.IMD_WEATHER_POLL_INTERVAL_MINUTES ?? 0);
+const IMD_STATION_IDS = (process.env.IMD_STATION_IDS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 /**
  * Populates the data source registry foundation at startup. Currently
@@ -59,6 +72,21 @@ async function registerDataSources() {
   });
 }
 
+/** One IMD weather ingestion pass: fetch configured stations, persist. */
+async function runWeatherIngestionPass() {
+  try {
+    const result = await runWeatherIngestion(IMD_STATION_IDS);
+    if (result.status === 'UNAVAILABLE') {
+      console.warn('[IMD_WEATHER] ingestion unavailable:', result.errors);
+      return;
+    }
+    console.log(`[IMD_WEATHER] ingestion pass complete: ${result.persisted}/${result.total} station(s) persisted`);
+  } catch (err) {
+    // Scheduled ingestion must never crash the server.
+    console.error('[IMD_WEATHER] ingestion pass failed:', err.message);
+  }
+}
+
 /** One ingestion pass: fetch, filter, parse, persist, expire. */
 async function runSachetIngestion() {
   try {
@@ -98,10 +126,18 @@ async function start() {
     setInterval(runSachetIngestion, SACHET_POLL_INTERVAL_MINUTES * 60 * 1000);
   }
 
+  if (IMD_WEATHER_POLL_INTERVAL_MINUTES > 0 && hasCredentials() && IMD_STATION_IDS.length > 0) {
+    setTimeout(runWeatherIngestionPass, 7000);
+    setInterval(runWeatherIngestionPass, IMD_WEATHER_POLL_INTERVAL_MINUTES * 60 * 1000);
+  }
+
   app.listen(PORT, () => {
     console.log(`NER-SMART backend running on http://localhost:${PORT} [APP_MODE=${process.env.APP_MODE || 'demo'}]`);
     if (SACHET_POLL_INTERVAL_MINUTES > 0) {
       console.log(`[SACHET] auto-polling every ${SACHET_POLL_INTERVAL_MINUTES} minutes`);
+    }
+    if (IMD_WEATHER_POLL_INTERVAL_MINUTES > 0 && hasCredentials() && IMD_STATION_IDS.length > 0) {
+      console.log(`[IMD_WEATHER] auto-polling every ${IMD_WEATHER_POLL_INTERVAL_MINUTES} minutes`);
     }
   });
 }

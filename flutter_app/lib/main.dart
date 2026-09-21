@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 import 'services/connectivity_service.dart';
 import 'services/sync_service.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,17 +22,9 @@ class NerSmartApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'NER-SMART Driver',
+      title: 'NER SMART Driver',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primaryColor: const Color(0xFF0F2942),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0F2942),
-          primary: const Color(0xFF0F2942),
-        ),
-        useMaterial3: true,
-        fontFamily: 'Roboto',
-      ),
+      theme: buildAppTheme(),
       home: const HomeScreen(),
     );
   }
