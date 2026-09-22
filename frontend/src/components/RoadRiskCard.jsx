@@ -134,7 +134,7 @@ export default function RoadRiskCard({
             <>
               <p>
                 {weather.weather.weatherCondition || "Condition unknown"} ·{" "}
-                {weather.weather.rainfallMm !== null ? `${weather.weather.rainfallMm}mm/24hr` : "rainfall n/a"}
+                {weather.weather.rainfallMm !== null ? `${weather.weather.rainfallMm}mm rainfall` : "rainfall n/a"}
               </p>
               <p className="text-slate-500">
                 Source: {weather.weather.source} · {weather.distanceToStationKm}km away · {weather.matchConfidence} confidence
@@ -143,7 +143,7 @@ export default function RoadRiskCard({
             </>
           ) : (
             <p className="text-slate-500">
-              IMD weather unavailable{weather.reason ? ` — ${weather.reason}` : ""}
+              Weather unavailable{weather.reason ? ` — ${weather.reason}` : ""}
             </p>
           )}
         </div>

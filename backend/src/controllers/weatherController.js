@@ -5,8 +5,37 @@ const { findWeatherForRoad } = require('../services/weatherRoadService');
 const { extractRiskFeaturesFromWeather } = require('../services/weatherRiskAdapter');
 const { classifyFreshness } = require('../services/freshnessService');
 const { getAwsWeather, hasCredentials } = require('../services/weatherService');
+const weatherApiService = require('../services/weatherApiService');
 const { registerSource } = require('../services/dataSourceRegistry');
 const { calculateRisk } = require('../services/riskService');
+
+// Active provider selection (see WEATHER_PROVIDER.md). Defaults to
+// 'weatherapi' because IMD credentials are not obtainable for this
+// project (IMD_ACCESS = NOT_VERIFIED — see IMD_INTEGRATION.md); IMD
+// remains fully wired and can be reactivated with WEATHER_PROVIDER=imd
+// the moment real credentials exist. This is the ONE place that decides
+// which provider's ingestion/read path is active.
+//
+// Read live (not cached at module load) — same principle as
+// weatherService.hasCredentials() re-reading process.env every call —
+// so both a real server restart and a test's `withEnv` helper take
+// effect immediately.
+function getActiveProvider() {
+  return (process.env.WEATHER_PROVIDER || 'weatherapi').toLowerCase();
+}
+
+function activeProviderHasCredentials() {
+  return getActiveProvider() === 'imd' ? hasCredentials() : weatherApiService.hasCredentials();
+}
+
+function activeProviderUnavailableReason() {
+  if (getActiveProvider() === 'imd') {
+    return hasCredentials() ? 'no observation within range' : 'IMD credentials not configured — see IMD_INTEGRATION.md';
+  }
+  return weatherApiService.hasCredentials()
+    ? 'no observation within range'
+    : 'WeatherAPI credentials not configured — see WEATHER_PROVIDER.md';
+}
 
 // GET /api/weather/road/:roadId
 // Returns the nearest weather observation for a road (if any exists),
@@ -29,7 +58,7 @@ async function getWeatherForRoad(req, res) {
       roadId: road.id,
       weather: null,
       freshness: 'UNAVAILABLE',
-      reason: hasCredentials() ? 'no observation within range' : 'IMD credentials not configured — see IMD_INTEGRATION.md',
+      reason: activeProviderUnavailableReason(),
       riskInput,
       explanation,
     });
@@ -39,7 +68,7 @@ async function getWeatherForRoad(req, res) {
   const freshness = classifyFreshness({
     observedAt: observation.observedAt,
     receivedAt: observation.receivedAt,
-    hasCredentials: hasCredentials(),
+    hasCredentials: activeProviderHasCredentials(),
   });
 
   const { riskInput, explanation } = extractRiskFeaturesFromWeather(observation, {
@@ -154,4 +183,110 @@ async function runWeatherIngestion(stationIds = [], { fetchFn, persistFn = persi
   return { status: persisted > 0 ? 'LIVE' : 'UNAVAILABLE', persisted, total: stationIds.length, errors };
 }
 
-module.exports = { getWeatherForRoad, persistObservation, runWeatherIngestion };
+/**
+ * Derives representative polling locations for WeatherAPI ingestion from
+ * the road network already in the DB — the road's own representative
+ * coordinates (see Road.lat/lng), never an invented or user-GPS point.
+ * Coordinates are rounded to 1 decimal place (~11km) so closely-spaced
+ * road segments share a single poll instead of each segment generating
+ * its own API call; that's well within weatherRoadService's own
+ * HIGH-confidence radius (25km), so it doesn't change which reading a
+ * road ends up matched to at read time.
+ */
+async function getWeatherPollingLocations() {
+  const roads = await Road.find({ lat: { $ne: null }, lng: { $ne: null } }, 'lat lng name').lean();
+  const seen = new Map();
+  for (const road of roads) {
+    if (typeof road.lat !== 'number' || typeof road.lng !== 'number') continue;
+    const key = `${road.lat.toFixed(1)},${road.lng.toFixed(1)}`;
+    if (!seen.has(key)) seen.set(key, { lat: road.lat, lng: road.lng, label: road.name || key });
+  }
+  return Array.from(seen.values());
+}
+
+/**
+ * One WeatherAPI.com ingestion pass: fetches current weather for each
+ * polling location and persists successful, validated results. Mirrors
+ * `runWeatherIngestion`'s gating/error/idempotency discipline exactly,
+ * but targets coordinates (WeatherAPI is coordinate-based) instead of
+ * IMD station IDs, and registers under a distinct data-source key
+ * ('WEATHERAPI_WEATHER') so the UI never conflates a third-party fetch
+ * with IMD's — see WEATHER_PROVIDER.md.
+ */
+async function runWeatherApiIngestion(locations = [], { fetchFn, persistFn = persistObservation } = {}) {
+  if (!weatherApiService.hasCredentials()) {
+    registerSource('WEATHERAPI_WEATHER', {
+      status: 'UNAVAILABLE',
+      source: 'WeatherAPI.com Current Weather API (third-party, not an official government feed)',
+      coverage: 'Not attempted — no WEATHERAPI_API_KEY configured',
+      confidence: null,
+      error: 'No credentials. Set WEATHERAPI_API_KEY in backend/.env — see WEATHER_PROVIDER.md',
+    });
+    return { status: 'UNAVAILABLE', persisted: 0, total: 0, errors: ['no_credentials'] };
+  }
+
+  if (!locations.length) {
+    registerSource('WEATHERAPI_WEATHER', {
+      status: 'UNAVAILABLE',
+      source: 'WeatherAPI.com Current Weather API (third-party, not an official government feed)',
+      coverage: 'Not attempted — no NER road locations available to poll',
+      confidence: null,
+      error: 'No road locations found — import the road network before weather ingestion can run',
+    });
+    return { status: 'UNAVAILABLE', persisted: 0, total: 0, errors: ['no_locations_configured'] };
+  }
+
+  let persisted = 0;
+  const errors = [];
+
+  for (const location of locations) {
+    const result = await weatherApiService.getCurrentWeather(location.lat, location.lng, { fetchFn });
+    if (result.status === 'LIVE' && result.observation) {
+      try {
+        await persistFn(result.observation);
+        persisted += 1;
+      } catch (err) {
+        errors.push({ location: location.label || `${location.lat},${location.lng}`, reason: err.message });
+      }
+    } else {
+      errors.push({ location: location.label || `${location.lat},${location.lng}`, reason: result.error });
+    }
+  }
+
+  registerSource('WEATHERAPI_WEATHER', {
+    status: persisted > 0 ? 'LIVE' : 'UNAVAILABLE',
+    source: 'WeatherAPI.com Current Weather API (third-party, not an official government feed)',
+    coverage: `${persisted}/${locations.length} polled location(s)`,
+    // Lower baseline confidence than IMD's (0.85) — WeatherAPI is a
+    // third-party aggregator, not an official government station network,
+    // a documented engineering judgement call, not a measured accuracy.
+    confidence: persisted > 0 ? 0.7 : null,
+    error: persisted === 0 ? errors[0]?.reason || 'no successful fetches' : null,
+  });
+
+  return { status: persisted > 0 ? 'LIVE' : 'UNAVAILABLE', persisted, total: locations.length, errors };
+}
+
+/**
+ * The single weather ingestion scheduler entry point: chooses the
+ * configured provider (WEATHER_PROVIDER env) and runs its ingestion pass.
+ * This is the only place server.js needs to call — it never has to know
+ * which provider is active.
+ */
+async function runConfiguredWeatherIngestion({ imdStationIds = [], fetchFn, persistFn } = {}) {
+  if (getActiveProvider() === 'imd') {
+    return runWeatherIngestion(imdStationIds, { fetchFn, persistFn });
+  }
+  const locations = await getWeatherPollingLocations();
+  return runWeatherApiIngestion(locations, { fetchFn, persistFn });
+}
+
+module.exports = {
+  getWeatherForRoad,
+  persistObservation,
+  runWeatherIngestion,
+  runWeatherApiIngestion,
+  getWeatherPollingLocations,
+  runConfiguredWeatherIngestion,
+  getActiveProvider,
+};

@@ -1,5 +1,13 @@
 # IMD_INTEGRATION.md — Weather Data Integration (Phase 2)
 
+> **Status: FUTURE provider, not active.** The app's active weather
+> provider is now **WeatherAPI.com** (`WEATHER_PROVIDER=weatherapi`,
+> the default) — a third-party feed, not an official government source.
+> Everything below remains fully implemented and unchanged; it activates
+> the moment real IMD credentials exist and `WEATHER_PROVIDER=imd` is
+> set. See `WEATHER_PROVIDER.md` for the active provider and why IMD
+> could not be used for this project.
+
 ## Access status
 
 **`IMD_ACCESS = NOT_VERIFIED`**
