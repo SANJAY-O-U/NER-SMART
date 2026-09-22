@@ -61,12 +61,26 @@ test('buildWeatherEvidence returns empty when the risk adapter has no rainfall f
   assert.deepEqual(buildWeatherEvidence({ observation: {} }, extractFn), []);
 });
 
-test('buildWeatherEvidence produces one item when rainfall contribution exists', () => {
+test('buildWeatherEvidence produces one item when rainfall contribution exists, with source taken from the observation itself (not hardcoded)', () => {
   const extractFn = () => ({ explanation: [{ factor: 'rainfall', contribution: 30 }] });
-  const items = buildWeatherEvidence({ observation: { observedAt: new Date(), sourceStatus: 'LIVE' }, distanceKm: 12, confidence: 'MEDIUM' }, extractFn);
+  const items = buildWeatherEvidence(
+    { observation: { source: 'IMD_AWS', observedAt: new Date(), sourceStatus: 'LIVE' }, distanceKm: 12, confidence: 'MEDIUM' },
+    extractFn
+  );
   assert.equal(items.length, 1);
-  assert.equal(items[0].source, 'IMD_WEATHER');
+  assert.equal(items[0].source, 'IMD_AWS'); // derived from weather.source, not a hardcoded literal
   assert.equal(items[0].riskContribution, 30);
+});
+
+test('buildWeatherEvidence reports source: WEATHERAPI_CURRENT when the underlying observation came from WeatherAPI', () => {
+  const extractFn = () => ({ explanation: [{ factor: 'rainfall', contribution: 45 }] });
+  const items = buildWeatherEvidence(
+    { observation: { source: 'WEATHERAPI_CURRENT', observedAt: new Date(), sourceStatus: 'LIVE' }, distanceKm: 4.2, confidence: 'HIGH' },
+    extractFn
+  );
+  assert.equal(items.length, 1);
+  assert.equal(items[0].source, 'WEATHERAPI_CURRENT');
+  assert.doesNotMatch(items[0].detail, /IMD/); // provider-neutral wording, never claims IMD for non-IMD data
 });
 
 test('buildIncidentEvidence excludes RESOLVED incidents', () => {

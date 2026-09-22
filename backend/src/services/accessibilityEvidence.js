@@ -9,7 +9,7 @@
  *
  * Evidence item shape:
  * {
- *   source: 'ROAD_STATUS' | 'NDMA_SACHET' | 'IMD_WEATHER' | 'FIELD_INCIDENT',
+ *   source: 'ROAD_STATUS' | 'NDMA_SACHET' | <weather observation's own source, e.g. 'WEATHERAPI_CURRENT'/'IMD_AWS'> | 'FIELD_INCIDENT',
  *   type: string,                          // e.g. 'PHYSICAL_STATUS', 'FLOOD_ALERT'
  *   status: 'OPEN'|'RESTRICTED'|'HIGH_RISK'|'BLOCKED'|'UNKNOWN'|null,
  *   riskContribution: number|null,         // 0-100, for score-only evidence
@@ -87,11 +87,12 @@ function buildDisasterEvidence(alerts, computeDisasterRiskContribution, now = ne
 }
 
 /**
- * Weather evidence via Phase 2's weatherRoadService. As of this writing
- * IMD_ACCESS = NOT_VERIFIED, so `weatherMatch` will always be null in
- * practice — this function still exists so the architecture supports
- * weather the moment real access exists, per the mission's explicit
- * instruction. Never fabricates a weather risk when data is absent.
+ * Weather evidence via weatherRoadService, provider-agnostic (see
+ * WEATHER_PROVIDER.md — the active provider is whichever one actually
+ * wrote the matched WeatherObservation, e.g. 'WEATHERAPI_CURRENT' or
+ * 'IMD_AWS'/'IMD_CURRENT_WX'). `source` is always taken from the real
+ * persisted observation, never assumed — never fabricates a weather risk
+ * when data is absent.
  */
 function buildWeatherEvidence(weatherMatch, extractRiskFeaturesFromWeather) {
   if (!weatherMatch || !weatherMatch.observation) return [];
@@ -103,7 +104,7 @@ function buildWeatherEvidence(weatherMatch, extractRiskFeaturesFromWeather) {
 
   return [
     {
-      source: 'IMD_WEATHER',
+      source: weather.source,
       type: 'RAINFALL_EXPOSURE',
       status: null,
       riskContribution: rainfallFactor.contribution,
@@ -111,7 +112,7 @@ function buildWeatherEvidence(weatherMatch, extractRiskFeaturesFromWeather) {
       freshness: weather.sourceStatus || null,
       confidence: weatherMatch.confidence || null,
       associationMethod: null,
-      detail: `Rainfall exposure from nearest IMD station (${weatherMatch.distanceKm}km away)`,
+      detail: `Rainfall exposure from nearest weather source (${weatherMatch.distanceKm}km away)`,
     },
   ];
 }

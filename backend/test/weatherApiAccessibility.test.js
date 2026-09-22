@@ -35,6 +35,7 @@ test('a WeatherAPI-sourced observation reaches accessibility evidence with a rea
   assert.equal(evidence[0].type, 'RAINFALL_EXPOSURE');
   assert.ok(evidence[0].riskContribution > 0);
   assert.equal(evidence[0].status, null); // weather evidence never sets status directly
+  assert.equal(evidence[0].source, 'WEATHERAPI_CURRENT'); // attributed to the real provider, never hardcoded to IMD_WEATHER
 });
 
 // --- 12. weather alone cannot produce BLOCKED ---
