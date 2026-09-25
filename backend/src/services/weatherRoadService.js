@@ -65,7 +65,20 @@ async function findNearestWeather(lat, lng) {
 
   if (!matches.length) return null;
 
-  const observation = matches[0];
+  // Observations are kept as history (one row per location per observedAt),
+  // so many rows share the nearest point and $near returns an arbitrary one
+  // of them — often an old, STALE reading. Resolve the nearest location,
+  // then take that location's NEWEST reading (served by the unique
+  // source+sourceRecordId+observedAt index).
+  const nearest = matches[0];
+  let observation = nearest;
+  if (nearest.sourceRecordId) {
+    const latest = await WeatherObservation.findOne({
+      source: nearest.source,
+      sourceRecordId: nearest.sourceRecordId,
+    }).sort({ observedAt: -1 });
+    if (latest) observation = latest;
+  }
   const [obsLng, obsLat] = observation.location.coordinates;
   const distanceKm = Math.round(haversineKm(lat, lng, obsLat, obsLng) * 10) / 10;
 
