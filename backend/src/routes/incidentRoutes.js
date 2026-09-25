@@ -11,7 +11,7 @@ const writeLimiter = buildWriteLimiter();
 
 router.get('/', asyncHandler(getIncidents));
 router.get('/:id/impact', asyncHandler(getIncidentImpact));
-router.get('/:id', asyncHandler(getIncident));
+router.get('/:id', validateObjectIdParam('id'), asyncHandler(getIncident));
 
 // POST / (incident creation) is DELIBERATELY left without the API key
 // gate — see POST_PPT_PRODUCTION_AUDIT / this phase's final report for
