@@ -6,6 +6,7 @@ const { calculateRisk } = require('../services/riskService');
 const { computeAccessibilityForRoad } = require('../services/accessibilityService');
 const { shouldTriggerAlert } = require('../services/alertTriggerService');
 const { createProvenancedAlert } = require('../services/alertService');
+const { isValidEnumValue, isValidLat, isValidLng } = require('../utils/validators');
 
 const VALID_STATUSES = ['REPORTED', 'AI_ANALYSED', 'VERIFIED', 'ACTION_REQUIRED', 'RESOLVED'];
 
@@ -68,6 +69,15 @@ async function createIncident(req, res) {
 
   if (!type || lat === undefined || lng === undefined) {
     return failure(res, 'type, lat, and lng are required', 422);
+  }
+  if (!isValidEnumValue(Incident, 'type', type)) {
+    return failure(res, `type must be one of ${Incident.schema.path('type').enumValues.join(', ')}`, 422);
+  }
+  if (severity !== undefined && !isValidEnumValue(Incident, 'severity', severity)) {
+    return failure(res, `severity must be one of ${Incident.schema.path('severity').enumValues.join(', ')}`, 422);
+  }
+  if (!isValidLat(Number(lat)) || !isValidLng(Number(lng))) {
+    return failure(res, 'lat must be -90..90 and lng must be -180..180', 422);
   }
 
   if (clientEventId) {
@@ -142,8 +152,13 @@ async function createIncident(req, res) {
     beforeAccessibility = await computeAccessibilityForRoad(association.road._id);
   }
 
+  // Phase 5: aiResult is AI ASSISTANCE (classification/summary/severity
+  // hint/confidence/rationale for the operator), never authoritative — it
+  // is stored as-is but must NEVER overwrite the incident's own severity
+  // field, since that field is what buildIncidentEvidence reads into the
+  // deterministic accessibility engine. Silently letting AI's severity
+  // read drive accessibility would violate the accessibility firewall.
   incident.aiResult = aiResult;
-  incident.severity = aiResult.severity || incident.severity;
   incident.status = 'AI_ANALYSED';
   await incident.save();
 

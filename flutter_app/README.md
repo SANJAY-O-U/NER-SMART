@@ -40,15 +40,13 @@ still work end-to-end, just without live GPS.
 
 ## Point it at your backend
 
-Edit `lib/services/api_service.dart`:
-```dart
-static const String baseUrl = 'http://10.0.2.2:5000/api';
-```
-- Android emulator: keep `10.0.2.2` (maps to host machine's `localhost`).
-- iOS simulator: use `http://127.0.0.1:5000/api`.
-- Physical device: use your machine's LAN IP, e.g. `http://192.168.1.42:5000/api`
-  (device and backend must be on the same network; also allow the port
-  through your firewall).
+The backend URL is passed at build time (see `lib/config/app_config.dart`):
+- Android emulator: `flutter run` — defaults to `http://10.0.2.2:5000/api` in debug.
+- iOS simulator: `flutter run --dart-define=NER_API_BASE_URL=http://127.0.0.1:5000/api`.
+- Physical device: `flutter run --dart-define=NER_API_BASE_URL=http://192.168.1.42:5000/api`
+  (use your machine's LAN IP; same network; allow the port through your firewall).
+- Release: `flutter build apk --release --dart-define=NER_API_BASE_URL=https://<host>/api`
+  — HTTPS is mandatory; a release build without it shows a configuration error.
 
 ## Run
 

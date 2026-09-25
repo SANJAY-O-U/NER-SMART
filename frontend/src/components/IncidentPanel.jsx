@@ -205,8 +205,10 @@ export default function IncidentPanel({ incidents, onUpdateStatus, updatingId })
                   )}
                 </p>
                 {ai.summary && <p className="text-slate-600">{ai.summary}</p>}
+                {ai.rationale && <p className="text-slate-500 italic">{ai.rationale}</p>}
                 <p className="text-slate-400">
                   {ai.source === "REAL_AI" ? "Live AI analysis" : "Deterministic keyword fallback — no live AI model configured"}
+                  {" — AI assistance only, not the road's official status"}
                 </p>
               </div>
             )}

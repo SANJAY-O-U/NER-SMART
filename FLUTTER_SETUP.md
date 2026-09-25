@@ -62,16 +62,21 @@ Open `ios/Runner/Info.plist` and add inside the top-level `<dict>`:
 
 ## 5. Configure the backend base URL
 
-Edit `lib/services/api_service.dart`:
-```dart
-static const String baseUrl = 'http://10.0.2.2:5000/api';
-```
+The URL is a build-time setting (`NER_API_BASE_URL`, read by
+`lib/config/app_config.dart`) — no source edit needed.
 
-| Target                | baseUrl                              |
-|------------------------|---------------------------------------|
-| Android emulator       | `http://10.0.2.2:5000/api` (default) |
-| iOS simulator          | `http://127.0.0.1:5000/api`          |
-| Physical device        | `http://<your-machine-LAN-IP>:5000/api` (e.g. `192.168.1.42`) — device and backend must be on the same Wi-Fi, and your machine's firewall must allow port 5000 |
+| Target                | How to run / build |
+|------------------------|--------------------|
+| Android emulator       | `flutter run` (debug default: `http://10.0.2.2:5000/api`) |
+| iOS simulator          | `flutter run --dart-define=NER_API_BASE_URL=http://127.0.0.1:5000/api` |
+| Physical device (dev)  | `flutter run --dart-define=NER_API_BASE_URL=http://<your-machine-LAN-IP>:5000/api` — device and backend on the same Wi-Fi, firewall must allow port 5000 |
+| Production release     | `flutter build apk --release --dart-define=NER_API_BASE_URL=https://<backend-host>/api` |
+
+Release builds fail closed: without `NER_API_BASE_URL`, or with a
+non-HTTPS URL, the app shows a configuration error and makes no network
+calls. Plain-HTTP dev URLs work only in debug/profile builds (cleartext is
+allowed only by `android/app/src/debug/AndroidManifest.xml`). The app
+carries no API key or other secret.
 
 ## 6. Run
 
@@ -81,5 +86,5 @@ flutter run
 ```
 
 The backend (see DEMO_RUN.md) must already be running and reachable at the
-`baseUrl` you configured, or incident submission will fail with a clear
+URL you configured, or incident submission will fail with a clear
 "could not reach the backend" message in the app.

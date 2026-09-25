@@ -1,5 +1,10 @@
 require('dotenv').config();
 
+// Phase 7A: in NODE_ENV=production, abort startup (naming variables, never
+// values) if any mandatory configuration is missing — before connecting
+// to MongoDB or starting any scheduler.
+require('./config/productionEnv').assertProductionEnv();
+
 const app = require('./app');
 const connectDB = require('./config/db');
 const Road = require('./models/Road');
@@ -173,7 +178,7 @@ async function start() {
   }
 
   app.listen(PORT, () => {
-    console.log(`NER-SMART backend running on http://localhost:${PORT} [APP_MODE=${process.env.APP_MODE || 'demo'}]`);
+    console.log(`NER-SMART backend running on http://localhost:${PORT} [APP_MODE=${process.env.APP_MODE || 'unset'}]`);
     console.log(`[WEATHER] active provider: ${WEATHER_PROVIDER}`);
     if (SACHET_POLL_INTERVAL_MINUTES > 0) {
       console.log(`[SACHET] auto-polling every ${SACHET_POLL_INTERVAL_MINUTES} minutes`);

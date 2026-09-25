@@ -1,5 +1,6 @@
 const Road = require('../models/Road');
 const { success, failure } = require('../utils/response');
+const { isValidEnumValue, sanitizeStringParam } = require('../utils/validators');
 
 // GET /api/roads
 // GET /api/roads?bbox=minLng,minLat,maxLng,maxLat
@@ -9,7 +10,9 @@ const { success, failure } = require('../utils/response');
 // once as more corridors are imported). Without bbox, behavior is
 // unchanged from the screening demo: return everything, sorted by name.
 async function getRoads(req, res) {
-  const { bbox } = req.query;
+  // Phase 1 hardening: reject a non-string bbox (e.g. from bracket-notation
+  // query injection like `?bbox[$ne]=x`) before it ever reaches `.split`.
+  const bbox = sanitizeStringParam(req.query.bbox);
 
   if (!bbox) {
     const roads = await Road.find().sort({ name: 1 });
@@ -54,6 +57,8 @@ async function getRoads(req, res) {
 }
 
 // PATCH /api/roads/:id
+// Note: req.params.id is already confirmed a valid ObjectId by the
+// validateObjectIdParam('id') route middleware before this runs.
 async function updateRoad(req, res) {
   const allowedFields = [
     'name',
@@ -67,11 +72,18 @@ async function updateRoad(req, res) {
     'fieldStatus',
     'lastVerifiedAt',
   ];
+  const enumFields = ['status', 'physicalStatus', 'officialStatus', 'fieldStatus'];
   const updates = {};
 
   allowedFields.forEach((field) => {
     if (req.body[field] !== undefined) updates[field] = req.body[field];
   });
+
+  for (const field of enumFields) {
+    if (updates[field] !== undefined && !isValidEnumValue(Road, field, updates[field])) {
+      return failure(res, `${field} must be one of ${Road.schema.path(field).enumValues.join(', ')}`, 422);
+    }
+  }
 
   const road = await Road.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true });
   if (!road) return failure(res, 'Road not found', 404);

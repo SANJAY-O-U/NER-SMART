@@ -6,6 +6,8 @@ const {
   buildWeatherEvidence,
   buildIncidentEvidence,
 } = require('../src/services/accessibilityEvidence');
+const { classifyFreshness } = require('../src/services/freshnessService');
+const { computeAccessibilityFromEvidence } = require('../src/services/accessibilityEngine');
 
 test('buildRoadStatusEvidence skips UNKNOWN/absent statuses entirely', () => {
   const road = { physicalStatus: 'UNKNOWN', officialStatus: 'UNKNOWN', fieldStatus: 'UNKNOWN' };
@@ -81,6 +83,92 @@ test('buildWeatherEvidence reports source: WEATHERAPI_CURRENT when the underlyin
   assert.equal(items.length, 1);
   assert.equal(items[0].source, 'WEATHERAPI_CURRENT');
   assert.doesNotMatch(items[0].detail, /IMD/); // provider-neutral wording, never claims IMD for non-IMD data
+});
+
+// --- Phase 3: weather freshness must come from the observation's real age,
+// never from the stored sourceStatus flag (which only records "the fetch
+// that wrote this row succeeded" and is frozen to 'LIVE' forever — see
+// weatherController.js's persistObservation) ---
+
+test('buildWeatherEvidence classifies a fresh WeatherAPI observation as LIVE via the injected classifyFreshness', () => {
+  const extractFn = () => ({ explanation: [{ factor: 'rainfall', contribution: 40 }] });
+  const now = new Date('2026-09-23T12:00:00Z');
+  const items = buildWeatherEvidence(
+    {
+      observation: {
+        source: 'WEATHERAPI_CURRENT',
+        observedAt: new Date('2026-09-23T11:50:00Z'), // 10 minutes old
+        receivedAt: new Date('2026-09-23T11:50:05Z'),
+        sourceStatus: 'LIVE',
+      },
+      distanceKm: 3,
+      confidence: 'HIGH',
+    },
+    extractFn,
+    { now, classifyFreshness }
+  );
+  assert.equal(items[0].freshness, 'LIVE');
+});
+
+test('buildWeatherEvidence classifies a stale WeatherAPI observation as STALE even though sourceStatus is still LIVE', () => {
+  const extractFn = () => ({ explanation: [{ factor: 'rainfall', contribution: 40 }] });
+  const now = new Date('2026-09-23T12:00:00Z');
+  const items = buildWeatherEvidence(
+    {
+      observation: {
+        source: 'WEATHERAPI_CURRENT',
+        observedAt: new Date('2026-09-20T12:00:00Z'), // 3 days old
+        receivedAt: new Date('2026-09-20T12:00:05Z'),
+        sourceStatus: 'LIVE', // frozen at persist time — must NOT be trusted for freshness
+      },
+      distanceKm: 3,
+      confidence: 'HIGH',
+    },
+    extractFn,
+    { now, classifyFreshness }
+  );
+  assert.equal(items[0].freshness, 'STALE');
+});
+
+test('buildWeatherEvidence falls back to the old sourceStatus-derived freshness when classifyFreshness is not injected (backward compatible)', () => {
+  const extractFn = () => ({ explanation: [{ factor: 'rainfall', contribution: 40 }] });
+  const items = buildWeatherEvidence(
+    { observation: { source: 'WEATHERAPI_CURRENT', observedAt: new Date('2020-01-01'), sourceStatus: 'CACHED' }, distanceKm: 3 },
+    extractFn
+  );
+  assert.equal(items[0].freshness, 'CACHED');
+});
+
+test('a STALE weather observation cannot masquerade as fresh evidence in the accessibility engine: extreme rainfall 3 days old does not drive state to HIGH_RISK', () => {
+  const extractFn = () => ({ explanation: [{ factor: 'rainfall', contribution: 95 }] }); // would be HIGH_RISK if trusted as fresh
+  const now = new Date('2026-09-23T12:00:00Z');
+  const staleEvidence = buildWeatherEvidence(
+    {
+      observation: {
+        source: 'WEATHERAPI_CURRENT',
+        observedAt: new Date('2026-09-20T12:00:00Z'), // 3 days old -> STALE
+        receivedAt: new Date('2026-09-20T12:00:05Z'),
+        sourceStatus: 'LIVE',
+      },
+      distanceKm: 3,
+      confidence: 'HIGH',
+    },
+    extractFn,
+    { now, classifyFreshness }
+  );
+  const { state } = computeAccessibilityFromEvidence(staleEvidence, { now });
+  assert.equal(state, 'UNKNOWN'); // stale evidence is excluded from the active-evidence cascade entirely
+});
+
+test('a missing observedAt/receivedAt on a weather observation classifies as UNAVAILABLE, never fabricated as fresh', () => {
+  const extractFn = () => ({ explanation: [{ factor: 'rainfall', contribution: 40 }] });
+  const now = new Date('2026-09-23T12:00:00Z');
+  const items = buildWeatherEvidence(
+    { observation: { source: 'WEATHERAPI_CURRENT', observedAt: null, receivedAt: null, sourceStatus: 'LIVE' }, distanceKm: 3 },
+    extractFn,
+    { now, classifyFreshness }
+  );
+  assert.equal(items[0].freshness, 'UNAVAILABLE');
 });
 
 test('buildIncidentEvidence excludes RESOLVED incidents', () => {

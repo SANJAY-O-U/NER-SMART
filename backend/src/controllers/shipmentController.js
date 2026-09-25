@@ -1,5 +1,6 @@
 const Shipment = require('../models/Shipment');
 const { success, failure } = require('../utils/response');
+const { isValidEnumValue } = require('../utils/validators');
 
 // GET /api/shipments
 async function getShipments(req, res) {
@@ -20,6 +21,12 @@ async function createShipment(req, res) {
 
   if (!cargo || !origin || !destination) {
     return failure(res, 'cargo, origin, and destination are required', 422);
+  }
+  if (priority !== undefined && !isValidEnumValue(Shipment, 'priority', priority)) {
+    return failure(res, `priority must be one of ${Shipment.schema.path('priority').enumValues.join(', ')}`, 422);
+  }
+  if (status !== undefined && !isValidEnumValue(Shipment, 'status', status)) {
+    return failure(res, `status must be one of ${Shipment.schema.path('status').enumValues.join(', ')}`, 422);
   }
 
   const shipment = await Shipment.create({

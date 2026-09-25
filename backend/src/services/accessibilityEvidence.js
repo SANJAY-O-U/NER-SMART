@@ -93,14 +93,29 @@ function buildDisasterEvidence(alerts, computeDisasterRiskContribution, now = ne
  * 'IMD_AWS'/'IMD_CURRENT_WX'). `source` is always taken from the real
  * persisted observation, never assumed — never fabricates a weather risk
  * when data is absent.
+ *
+ * Freshness is classified dynamically from the observation's own age
+ * (via the injected `classifyFreshness`, same function/rules
+ * `GET /api/weather/road/:roadId` already uses) — NOT read from the
+ * stored `sourceStatus` field, which only ever records "the fetch that
+ * wrote this row succeeded" and is frozen to 'LIVE' at persist time (see
+ * weatherController.js's persistObservation). Using `sourceStatus`
+ * directly would make a weather reading from hours/days ago masquerade
+ * as current evidence forever. When `classifyFreshness` isn't injected,
+ * falls back to the old `sourceStatus`-based value for backward
+ * compatibility with callers that don't supply one.
  */
-function buildWeatherEvidence(weatherMatch, extractRiskFeaturesFromWeather) {
+function buildWeatherEvidence(weatherMatch, extractRiskFeaturesFromWeather, { now = new Date(), classifyFreshness } = {}) {
   if (!weatherMatch || !weatherMatch.observation) return [];
 
   const weather = weatherMatch.observation;
   const { explanation } = extractRiskFeaturesFromWeather(weather, {});
   const rainfallFactor = explanation.find((e) => e.factor === 'rainfall');
   if (!rainfallFactor || rainfallFactor.contribution === null) return [];
+
+  const freshness = classifyFreshness
+    ? classifyFreshness({ observedAt: weather.observedAt, receivedAt: weather.receivedAt, now })
+    : weather.sourceStatus || null;
 
   return [
     {
@@ -109,7 +124,7 @@ function buildWeatherEvidence(weatherMatch, extractRiskFeaturesFromWeather) {
       status: null,
       riskContribution: rainfallFactor.contribution,
       timestamp: weather.observedAt || null,
-      freshness: weather.sourceStatus || null,
+      freshness,
       confidence: weatherMatch.confidence || null,
       associationMethod: null,
       detail: `Rainfall exposure from nearest weather source (${weatherMatch.distanceKm}km away)`,

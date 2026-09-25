@@ -1,18 +1,17 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/app_config.dart';
 
 /// Talks to the EXISTING NER-SMART Node/Express backend.
 /// This is the ONLY place in the app that makes network calls.
 ///
-/// IMPORTANT — set this to wherever your backend is actually reachable
-/// from the device/emulator running this app:
-///   - Android emulator -> host machine's localhost: 10.0.2.2
-///   - iOS simulator    -> localhost works directly: 127.0.0.1
-///   - Physical device  -> your machine's LAN IP, e.g. 192.168.1.42
+/// The backend base URL is resolved at build time by [AppConfig] — see
+/// lib/config/app_config.dart for the emulator / physical-device /
+/// production (HTTPS-only) options.
 /// Same backend, same MongoDB, same API the React dashboard already uses —
 /// there is no separate backend for this app.
 class ApiService {
-  static const String baseUrl = 'http://10.0.2.2:5000/api';
+  static String get baseUrl => AppConfig.apiBaseUrl;
 
   /// POST /api/incidents
   /// Returns the created (or, on idempotent replay, existing) incident as

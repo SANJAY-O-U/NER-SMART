@@ -11,6 +11,13 @@
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
 
+// Phase 1.5 — Client Compatibility. Must match the backend's NER_API_KEY
+// for local development (see .env.example). Only ever attached to
+// state-changing requests (see WRITE_METHODS below) — GET requests never
+// send it, matching the backend's own public-GET-by-default design.
+const API_KEY = import.meta.env.VITE_API_KEY;
+const WRITE_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
+
 export class ApiError extends Error {
   constructor(message, status, details) {
     super(message);
@@ -22,10 +29,17 @@ export class ApiError extends Error {
 
 async function request(path, options = {}) {
   const url = `${BASE_URL}${path}`;
-  const config = {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options,
-  };
+  const method = (options.method || "GET").toUpperCase();
+
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (WRITE_METHODS.has(method) && API_KEY) {
+    headers["x-api-key"] = API_KEY;
+  }
+
+  // options spread first, headers applied last, so the fully-merged
+  // headers object above always wins regardless of whether a caller
+  // passes its own `options.headers`.
+  const config = { ...options, headers };
 
   let response;
   try {

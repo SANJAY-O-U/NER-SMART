@@ -16,20 +16,52 @@ const weatherRoutes = require('./routes/weatherRoutes');
 const sachetRoutes = require('./routes/sachetRoutes');
 
 const { errorHandler, notFound } = require('./utils/errorHandler');
+const { isDemoResetAllowed } = require('./controllers/demoController');
+const { buildCorsOptions } = require('./middleware/corsConfig');
+const { buildGeneralLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 
-app.use(cors());
+// Phase 7A: behind a hosting platform's reverse proxy/load balancer every
+// request arrives from the proxy's address, so the per-IP rate limiter
+// would treat all users as one client. NER_TRUST_PROXY_HOPS (a positive
+// integer — the number of proxies in front of the app) makes req.ip use
+// X-Forwarded-For. Unset = Express default (trust nothing), which is the
+// correct setting when clients connect directly.
+const trustProxyHops = Number(process.env.NER_TRUST_PROXY_HOPS);
+if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
+  app.set('trust proxy', trustProxyHops);
+}
+
+// Phase 1 hardening: explicit origin allowlist (NER_ALLOWED_ORIGINS),
+// replacing the previous wildcard `cors()` — see WEATHER_PROVIDER.md's
+// sibling doc, POST_PPT_PRODUCTION_AUDIT, for why. An unconfigured
+// allowlist means NO cross-origin browser request is allowed (fails
+// closed), though same-origin/no-Origin requests (curl, server-to-server)
+// are never affected by CORS regardless.
+app.use(cors(buildCorsOptions()));
 app.use(express.json());
 app.use(morgan('dev'));
 
+// Phase 1 hardening: lenient, global rate limit — protects against basic
+// abuse without throttling normal dashboard reads (see
+// src/middleware/rateLimiter.js for the write-specific stricter tier,
+// applied per-route below).
+app.use(buildGeneralLimiter());
+
+// Phase 7A.1: report the mode exactly as configured ('unset' when absent)
+// and whether demo-only features are actually enabled, using the SAME
+// predicate the demo reset / simulation guards use — previously an unset
+// APP_MODE was displayed as 'demo' while the guards (correctly) treated
+// it as not-demo.
 app.get('/api/health', (req, res) => {
   res.json({
     success: true,
     data: {
       status: 'ok',
       service: 'ner-smart-backend',
-      appMode: process.env.APP_MODE || 'demo',
+      appMode: process.env.APP_MODE || 'unset',
+      demoMode: isDemoResetAllowed(process.env.APP_MODE),
     },
   });
 });

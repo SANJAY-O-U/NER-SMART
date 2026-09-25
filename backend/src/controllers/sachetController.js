@@ -4,6 +4,7 @@ const { success, failure } = require('../utils/response');
 const { ingestSachetAlerts } = require('../services/sachetService');
 const { associateAlertWithRoads } = require('../services/sachetRoadAssociation');
 const { computeDisasterRiskContribution } = require('../services/disasterRiskAdapter');
+const { isAlertExpired } = require('../services/disasterLifecycleService');
 
 /**
  * Persists one normalized alert: upsert by identifier (the CAP identity),
@@ -39,13 +40,24 @@ async function persistAlert(normalized) {
   return { isNew: !existing, roadCount: association.matchedRoadCount };
 }
 
-/** Marks any ACTIVE/UPDATED alert past its `expires` time as EXPIRED. */
+/**
+ * Marks any ACTIVE/UPDATED alert that is no longer current as EXPIRED —
+ * either because CAP's own `expires` has passed, or (Phase 4: `expires`
+ * is optional under CAP 1.2 and real SACHET alerts sometimes omit it) it
+ * has exceeded the documented no-expiry fallback age. Decision logic
+ * lives in the pure, unit-tested disasterLifecycleService.isAlertExpired
+ * — this function is just the DB fetch/filter/update around it.
+ */
 async function expireOldAlerts() {
   const now = new Date();
-  const result = await DisasterAlert.updateMany(
-    { expires: { $lt: now }, lifecycleStatus: { $in: ['ACTIVE', 'UPDATED'] } },
-    { $set: { lifecycleStatus: 'EXPIRED' } }
+  const candidates = await DisasterAlert.find(
+    { lifecycleStatus: { $in: ['ACTIVE', 'UPDATED'] } },
+    '_id expires sent firstSeenAt'
   );
+  const idsToExpire = candidates.filter((alert) => isAlertExpired(alert, { now })).map((alert) => alert._id);
+  if (!idsToExpire.length) return 0;
+
+  const result = await DisasterAlert.updateMany({ _id: { $in: idsToExpire } }, { $set: { lifecycleStatus: 'EXPIRED' } });
   return result.modifiedCount || 0;
 }
 

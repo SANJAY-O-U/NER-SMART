@@ -17,6 +17,7 @@ const { extractRiskFeaturesFromWeather } = require('./weatherRiskAdapter');
 const { computeDisasterRiskContribution } = require('./disasterRiskAdapter');
 const { computeAccessibilityFromEvidence } = require('./accessibilityEngine');
 const { classifyIncidentFreshness } = require('./incidentFreshnessService');
+const { classifyFreshness } = require('./freshnessService');
 const {
   buildRoadStatusEvidence,
   buildDisasterEvidence,
@@ -50,13 +51,13 @@ async function computeAccessibilityForRoad(roadId, { excludeIncidentId = null } 
   const [alerts, incidents, weatherMatch] = await Promise.all([
     DisasterAlert.find({ affectedRoadIds: road._id, lifecycleStatus: { $in: ['ACTIVE', 'UPDATED'] } }),
     Incident.find(incidentQuery).sort({ timestamp: -1 }).limit(10),
-    findWeatherForRoad(road).catch(() => null), // weather is always UNAVAILABLE (IMD_ACCESS=NOT_VERIFIED) — never let it break accessibility
+    findWeatherForRoad(road).catch(() => null), // never let a weather lookup failure break accessibility, regardless of which provider is active
   ]);
 
   const evidence = [
     ...buildRoadStatusEvidence(road),
     ...buildDisasterEvidence(alerts, computeDisasterRiskContribution, now),
-    ...buildWeatherEvidence(weatherMatch, extractRiskFeaturesFromWeather),
+    ...buildWeatherEvidence(weatherMatch, extractRiskFeaturesFromWeather, { now, classifyFreshness }),
     ...buildIncidentEvidence(incidents, { now, classifyIncidentFreshness }),
   ];
 

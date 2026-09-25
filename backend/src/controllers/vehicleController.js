@@ -1,5 +1,6 @@
 const Vehicle = require('../models/Vehicle');
 const { success, failure } = require('../utils/response');
+const { isValidLat, isValidLng, isValidEnumValue, isValidObjectId } = require('../utils/validators');
 
 // GET /api/vehicles
 async function getVehicles(req, res) {
@@ -15,6 +16,15 @@ async function updateVehicleLocation(req, res) {
 
   if (lat === undefined || lng === undefined) {
     return failure(res, 'lat and lng are required', 422);
+  }
+  if (!isValidLat(Number(lat)) || !isValidLng(Number(lng))) {
+    return failure(res, 'lat must be -90..90 and lng must be -180..180', 422);
+  }
+  if (vehicleId !== undefined && !isValidObjectId(vehicleId)) {
+    return failure(res, 'vehicleId must be a valid id', 422);
+  }
+  if (status !== undefined && !isValidEnumValue(Vehicle, 'status', status)) {
+    return failure(res, `status must be one of ${Vehicle.schema.path('status').enumValues.join(', ')}`, 422);
   }
 
   let vehicle;

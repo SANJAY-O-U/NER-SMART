@@ -2,9 +2,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { normalizeWeatherApiCurrent } = require('../src/services/weatherApiValidation');
 const { extractRiskFeaturesFromWeather } = require('../src/services/weatherRiskAdapter');
-const { buildWeatherEvidence, buildRoadStatusEvidence } = require('../src/services/accessibilityEvidence');
+const { buildWeatherEvidence, buildRoadStatusEvidence, buildDisasterEvidence } = require('../src/services/accessibilityEvidence');
 const { computeAccessibilityFromEvidence } = require('../src/services/accessibilityEngine');
 const { classifyFreshness } = require('../src/services/freshnessService');
+const { computeDisasterRiskContribution } = require('../src/services/disasterRiskAdapter');
 
 // Fixture: an extreme WeatherAPI current.json reading (heavy rain + severe
 // gusts) — used to prove weather evidence can raise risk but can never by
@@ -75,4 +76,27 @@ test('a fresh cached WeatherAPI row still reports UNAVAILABLE when the active pr
   const observedAt = new Date('2026-09-22T11:55:00Z'); // 5 minutes old
   const freshness = classifyFreshness({ observedAt, receivedAt: observedAt, now, hasCredentials: false });
   assert.equal(freshness, 'UNAVAILABLE');
+});
+
+// --- Failure mode F: SACHET disaster evidence + weather evidence together ---
+
+test('a live NDMA SACHET alert combined with WeatherAPI weather evidence: disaster evidence still drives HIGH_RISK, weather evidence is not suppressed or overridden', () => {
+  const now = new Date();
+  const disasterEvidence = buildDisasterEvidence(
+    [{ identifier: 'sachet-1', event: 'Flood', severity: 'Severe', urgency: 'Expected', certainty: 'Likely', lifecycleStatus: 'ACTIVE', associationConfidence: 'MEDIUM', associationMethod: 'LGD_DISTRICT_MATCH' }],
+    computeDisasterRiskContribution,
+    now
+  );
+  const weatherEvidence = buildWeatherEvidence(weatherApiMatch(), extractRiskFeaturesFromWeather, { now, classifyFreshness });
+
+  const combined = computeAccessibilityFromEvidence([...disasterEvidence, ...weatherEvidence], { now });
+
+  assert.equal(combined.state, 'HIGH_RISK');
+  // Both independent sources must still be visible in the evidence trail —
+  // weather evidence does not get dropped just because SACHET evidence exists.
+  const sources = new Set(combined.evidence.map((e) => e.source));
+  assert.ok(sources.has('NDMA_SACHET'));
+  assert.ok(sources.has('WEATHERAPI_CURRENT'));
+  // Two independent, agreeing, fresh sources -> at least MEDIUM confidence, never left UNKNOWN.
+  assert.ok(['MEDIUM', 'HIGH'].includes(combined.confidence));
 });

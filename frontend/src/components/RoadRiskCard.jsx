@@ -67,7 +67,7 @@ export default function RoadRiskCard({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500">Overall:</span>
+            <span className="text-xs text-slate-500">Overall (baseline):</span>
             <RiskBadge score={avgRisk} />
           </div>
         </div>

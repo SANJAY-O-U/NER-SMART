@@ -64,11 +64,19 @@ const IncidentSchema = new mongoose.Schema(
     // Never inferred — only set when the client explicitly sends it.
     locationMode: { type: String, enum: ['LIVE_GPS', 'NER_DEMO', null], default: null },
     gpsAccuracyMeters: { type: Number, default: null },
+    // Phase 5: AI ASSISTANCE only — classification/summarization to help an
+    // operator triage, never authoritative. `severity` here is a hint and
+    // is deliberately never copied onto the top-level `severity` field
+    // above (which stays driver-submitted-or-default) and is never read by
+    // the deterministic accessibility engine — see accessibilityEvidence.js.
     aiResult: {
       classification: { type: String, default: null },
-      severity: { type: String, default: null }, // AI's own LOW/MEDIUM/HIGH read, may refine `severity`
-      confidence: { type: Number, default: null }, // 0-1
+      severity: { type: String, default: null }, // AI's own LOW/MEDIUM/HIGH read — a hint, never authoritative
+      confidence: { type: Number, default: null }, // 0-1, AI's own confidence — never accessibility confidence
       summary: { type: String, default: null },
+      rationale: { type: String, default: null }, // short explanation of why this classification was reached
+      model: { type: String, default: null }, // e.g. 'heuristic-keyword-v1' or the real model id used
+      generatedAt: { type: Date, default: null },
       source: { type: String, enum: ['REAL_AI', 'DEMO_FALLBACK', null], default: null },
     },
   },
