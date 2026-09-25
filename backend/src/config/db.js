@@ -14,11 +14,22 @@ async function connectDB() {
 
   try {
     await mongoose.connect(uri);
-    console.log(`MongoDB connected: ${mongoose.connection.host}`);
+    console.log(describeConnection(mongoose.connection));
   } catch (err) {
     console.error('MongoDB connection error:', err.message);
     process.exit(1);
   }
 }
 
+/**
+ * Phase 8B.1: "MongoDB connected: <host> / <database>" — read from the live
+ * connection (the database the driver actually selected, including the
+ * implicit `test` fallback), never from MONGO_URI, so no username,
+ * password or query parameter can reach the log.
+ */
+function describeConnection(connection) {
+  return `MongoDB connected: ${connection.host || 'unknown-host'} / ${connection.name || 'unknown-database'}`;
+}
+
 module.exports = connectDB;
+module.exports.describeConnection = describeConnection;

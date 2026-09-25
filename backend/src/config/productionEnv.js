@@ -71,13 +71,77 @@ function validateProductionEnv(env = process.env) {
 }
 
 /**
- * Startup hook for server.js. No-op outside NODE_ENV=production.
- * Exits the process (code 1) with a clear, value-free message on failure.
+ * Phase 8B.1: extracts the database name from a MongoDB connection string
+ * WITHOUT exposing credentials — only the path segment after the host is
+ * read. Returns '' when the URI names no database (the driver would then
+ * silently fall back to `test`). Returns null when the value is not a
+ * mongodb:// or mongodb+srv:// URI at all.
+ */
+function getMongoDatabaseName(uri) {
+  if (typeof uri !== 'string') return null;
+  const match = uri.trim().match(/^mongodb(?:\+srv)?:\/\/(.*)$/);
+  if (!match) return null;
+  const withoutQuery = match[1].split('?')[0];
+  // Credentials (user:password@) precede the LAST '@' of the authority;
+  // a URL-encoded password never contains a raw '@' or '/'.
+  const afterCredentials = withoutQuery.slice(withoutQuery.lastIndexOf('@') + 1);
+  const slash = afterCredentials.indexOf('/');
+  if (slash === -1) return '';
+  try {
+    return decodeURIComponent(afterCredentials.slice(slash + 1));
+  } catch {
+    return afterCredentials.slice(slash + 1);
+  }
+}
+
+/**
+ * Phase 8B.1: with APP_MODE=production, MONGO_URI must name its database
+ * explicitly, and that database must not be `test` (the driver default,
+ * i.e. the shared database this project is migrating away from). Demo and
+ * local modes are unaffected. Messages never include the URI itself.
+ * @returns {string[]} errors (empty when valid or not in production mode)
+ */
+function validateProductionDatabase(env = process.env) {
+  if (env.APP_MODE !== 'production') return [];
+  if (isBlank(env.MONGO_URI)) return []; // reported by validateProductionEnv / connectDB
+
+  const dbName = getMongoDatabaseName(env.MONGO_URI);
+  if (dbName === null) {
+    return ['MONGO_URI must be a mongodb:// or mongodb+srv:// connection string'];
+  }
+  if (dbName === '') {
+    return [
+      'MONGO_URI must name its database explicitly when APP_MODE=production ' +
+        '(mongodb+srv://<user>:<password>@<cluster>/<database>?...) — without one the driver falls back to "test"',
+    ];
+  }
+  if (dbName.toLowerCase() === 'test') {
+    return ['MONGO_URI must not use the "test" database when APP_MODE=production — use a dedicated production database'];
+  }
+  return [];
+}
+
+/**
+ * Startup hook for server.js — runs before connecting to MongoDB or
+ * starting any scheduler. Exits the process (code 1) with a clear,
+ * value-free message on failure.
+ *   - NODE_ENV=production: full production variable validation.
+ *   - APP_MODE=production: explicit, non-`test` database name required.
  */
 function assertProductionEnv(env = process.env) {
-  if (env.NODE_ENV !== 'production') return;
+  const nodeProduction = env.NODE_ENV === 'production';
+  const appProduction = env.APP_MODE === 'production';
+  if (!nodeProduction && !appProduction) return;
 
-  const { errors, warnings } = validateProductionEnv(env);
+  const errors = [];
+  const warnings = [];
+  if (nodeProduction) {
+    const result = validateProductionEnv(env);
+    errors.push(...result.errors);
+    warnings.push(...result.warnings);
+  }
+  errors.push(...validateProductionDatabase(env));
+
   for (const w of warnings) console.warn(`[CONFIG] warning: ${w}`);
   if (errors.length > 0) {
     console.error('[CONFIG] Production startup aborted — fix the following environment variables:');
@@ -87,4 +151,4 @@ function assertProductionEnv(env = process.env) {
   console.log('[CONFIG] production environment validated');
 }
 
-module.exports = { validateProductionEnv, assertProductionEnv };
+module.exports = { validateProductionEnv, validateProductionDatabase, getMongoDatabaseName, assertProductionEnv };

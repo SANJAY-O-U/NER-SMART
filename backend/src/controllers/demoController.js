@@ -1,13 +1,8 @@
 const { runSeed } = require('../seed/seed');
 const { success, failure } = require('../utils/response');
-
-/**
- * Pure predicate — Phase 7F allowlist. Exported for direct unit testing
- * without touching the database.
- */
-function isDemoResetAllowed(appMode) {
-  return appMode === 'demo';
-}
+// Phase 7F allowlist predicate; lives in utils/appMode so the seed CLI can
+// share it (seed.js cannot require this controller — it would be circular).
+const { isDemoResetAllowed } = require('../utils/appMode');
 
 // POST /api/demo/reset
 // Wipes and re-seeds all collections to the known demo dataset, so the

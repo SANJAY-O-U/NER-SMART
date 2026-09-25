@@ -9,6 +9,7 @@ const Warehouse = require('../models/Warehouse');
 const Hospital = require('../models/Hospital');
 
 const { calculateRisk } = require('../services/riskService');
+const { isDemoResetAllowed } = require('../utils/appMode');
 
 /**
  * Wipes and re-seeds all collections with the known demo dataset.
@@ -147,9 +148,32 @@ async function runSeed() {
   };
 }
 
+/**
+ * Phase 8B.1: the seed CLI wipes incidents, alerts, shipments, vehicles,
+ * warehouses, hospitals and demo roads in whatever database MONGO_URI
+ * names, so — like POST /api/demo/reset — it only runs when APP_MODE is
+ * exactly 'demo'. Returns an actionable error message, or null if allowed.
+ */
+function seedCliRefusal(appMode) {
+  if (isDemoResetAllowed(appMode)) return null;
+  return (
+    `Refusing to seed: APP_MODE is "${appMode || 'unset'}", but the seed wipes and re-creates demo data ` +
+    'and only runs when APP_MODE=demo. Point MONGO_URI at a development database and set APP_MODE=demo to seed. ' +
+    'No database connection was opened.'
+  );
+}
+
 // CLI entry point: `npm run seed`. Not used when imported by the server.
 if (require.main === module) {
   require('dotenv').config();
+
+  // Checked BEFORE connecting, so a refused run performs zero DB access.
+  const refusal = seedCliRefusal(process.env.APP_MODE);
+  if (refusal) {
+    console.error(refusal);
+    process.exit(1);
+  }
+
   const connectDB = require('../config/db');
 
   connectDB()
@@ -162,4 +186,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { runSeed };
+module.exports = { runSeed, seedCliRefusal };

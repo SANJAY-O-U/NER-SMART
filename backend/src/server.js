@@ -12,8 +12,7 @@ const { registerSource } = require('./services/dataSourceRegistry');
 const { hasCredentials } = require('./services/weatherService');
 const weatherApiService = require('./services/weatherApiService');
 const { runConfiguredWeatherIngestion, getActiveProvider } = require('./controllers/weatherController');
-const { ingestSachetAlerts } = require('./services/sachetService');
-const { persistAlert, expireOldAlerts } = require('./controllers/sachetController');
+const { runScheduledSachetPass } = require('./controllers/sachetController');
 
 const PORT = process.env.PORT || 5000;
 
@@ -131,33 +130,13 @@ async function runWeatherIngestionPass() {
   }
 }
 
-/** One ingestion pass: fetch, filter, parse, persist, expire. */
+/**
+ * One ingestion pass: fetch, filter, parse, persist — then expire stored
+ * alerts regardless of whether the fetch succeeded (Phase 8B.1, see
+ * sachetController.runScheduledSachetPass).
+ */
 async function runSachetIngestion() {
-  try {
-    const result = await ingestSachetAlerts();
-    if (result.status === 'UNAVAILABLE') {
-      console.warn('[SACHET] ingestion unavailable:', result.errors);
-      return;
-    }
-    if (result.unchanged) {
-      await expireOldAlerts();
-      return;
-    }
-    let persisted = 0;
-    for (const alert of result.alerts) {
-      try {
-        await persistAlert(alert);
-        persisted += 1;
-      } catch (err) {
-        console.warn('[SACHET] failed to persist alert', alert.identifier, err.message);
-      }
-    }
-    await expireOldAlerts();
-    console.log(`[SACHET] ingestion pass complete: ${persisted}/${result.totalCandidates} NER-relevant alerts persisted`);
-  } catch (err) {
-    // Scheduled ingestion must never crash the server.
-    console.error('[SACHET] ingestion pass failed:', err.message);
-  }
+  await runScheduledSachetPass();
 }
 
 async function start() {

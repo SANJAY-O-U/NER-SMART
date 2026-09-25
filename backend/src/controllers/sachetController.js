@@ -61,8 +61,67 @@ async function expireOldAlerts() {
   return result.modifiedCount || 0;
 }
 
-// POST /api/sachet/ingest — runs one ingestion pass. Called by the
-// scheduler (server.js) and available for manual/test triggering.
+/**
+ * One scheduled SACHET pass (server.js interval): fetch, persist, expire.
+ *
+ * Phase 8B.1: expiry runs on EVERY outcome — success, unchanged feed,
+ * UNAVAILABLE (e.g. timeout) or a thrown error. Expiry depends only on
+ * each stored alert's own `expires`/fallback age (isAlertExpired), never
+ * on the feed being reachable, so a host that cannot reach SACHET still
+ * retires alerts on time instead of showing them as ACTIVE forever.
+ * A failed fetch persists nothing, marks nothing LIVE and deletes nothing.
+ * Never throws — scheduled ingestion must not crash the server.
+ *
+ * @param {object} [deps] injectable for tests
+ * @returns {Promise<{status: string, persisted: number, expiredCount: number|null}>}
+ */
+async function runScheduledSachetPass({
+  ingest = ingestSachetAlerts,
+  persist = persistAlert,
+  expire = expireOldAlerts,
+  logger = console,
+} = {}) {
+  let status = 'FAILED';
+  let persisted = 0;
+
+  try {
+    const result = await ingest();
+    if (result.status === 'UNAVAILABLE') {
+      status = 'UNAVAILABLE';
+      logger.warn('[SACHET] ingestion unavailable:', result.errors);
+    } else if (result.unchanged) {
+      status = 'UNCHANGED';
+    } else {
+      status = 'LIVE';
+      for (const alert of result.alerts) {
+        try {
+          await persist(alert);
+          persisted += 1;
+        } catch (err) {
+          logger.warn('[SACHET] failed to persist alert', alert.identifier, err.message);
+        }
+      }
+      logger.log(`[SACHET] ingestion pass complete: ${persisted}/${result.totalCandidates} NER-relevant alerts persisted`);
+    }
+  } catch (err) {
+    logger.error('[SACHET] ingestion pass failed:', err.message);
+  }
+
+  let expiredCount = null;
+  try {
+    expiredCount = await expire();
+    if (expiredCount > 0 && status !== 'LIVE' && status !== 'UNCHANGED') {
+      logger.log(`[SACHET] feed ${status.toLowerCase()} — expired ${expiredCount} stored alert(s) past their expiry`);
+    }
+  } catch (err) {
+    logger.error('[SACHET] expiry pass failed:', err.message);
+  }
+
+  return { status, persisted, expiredCount };
+}
+
+// POST /api/sachet/ingest — runs one ingestion pass. Available for
+// manual/test triggering (the scheduler uses runScheduledSachetPass).
 async function runIngestion(req, res) {
   const result = await ingestSachetAlerts();
 
@@ -131,4 +190,4 @@ async function getDisasterContextForRoad(req, res) {
   });
 }
 
-module.exports = { runIngestion, getActiveAlerts, getDisasterContextForRoad, persistAlert, expireOldAlerts };
+module.exports = { runIngestion, runScheduledSachetPass, getActiveAlerts, getDisasterContextForRoad, persistAlert, expireOldAlerts };
