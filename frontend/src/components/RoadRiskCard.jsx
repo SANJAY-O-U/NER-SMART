@@ -167,6 +167,13 @@ export default function RoadRiskCard({
                 {a.instruction && <p className="text-slate-600 italic">{a.instruction}</p>}
               </div>
             ))
+          ) : disasterContext.feed && disasterContext.feed.status !== "LIVE" ? (
+            // Phase 8C.7: zero alerts while the feed is down is "unknown", not "all clear".
+            <p className="text-slate-500">
+              NDMA SACHET feed currently {String(disasterContext.feed.status).toLowerCase()} — no current disaster data for this road (not an all-clear).
+            </p>
+          ) : !disasterContext.district ? (
+            <p className="text-slate-500">No district assigned to this road — SACHET alerts cannot be matched to it.</p>
           ) : (
             <p className="text-slate-500">No active NDMA SACHET alerts for this district.</p>
           )}

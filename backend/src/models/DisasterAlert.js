@@ -66,6 +66,13 @@ const DisasterAlertSchema = new mongoose.Schema(
     // Provenance
     source: { type: String, default: 'NDMA_SACHET' },
     sourceUrl: { type: String, default: null }, // the FetchXMLFile URL used
+    // Retrieval-time provenance (Phase 8C.7): `retrievedAt` and
+    // `sourceStatus` describe the fetch that last wrote THIS record
+    // (persistAlert sets 'LIVE' then). They are never updated when later
+    // fetches fail, so they do NOT describe the feed's current
+    // availability — use the NDMA_SACHET data source registry entry
+    // (GET /api/datasources, or `feed` on the /api/sachet/* responses).
+    // Record currency comes from lifecycleStatus/expires, not sourceStatus.
     retrievedAt: { type: Date, default: Date.now },
     sourceStatus: {
       type: String,

@@ -65,14 +65,30 @@ function computeScore(evidence) {
 
   let score = 100;
   for (const item of meaningful) {
-    if (item.status && STATUS_SCORE_PENALTY[item.status] !== undefined) {
-      score -= STATUS_SCORE_PENALTY[item.status];
-    }
-    if (item.riskContribution !== null && item.riskContribution !== undefined) {
-      score -= item.riskContribution * RISK_SCORE_WEIGHT;
-    }
+    score -= penaltyPoints(item);
   }
   return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+/**
+ * Exact (unrounded) points one evidence item removes from the score. The
+ * single source of truth for both computeScore and the reported `factors`,
+ * so the factors always add up to the score (Phase 8C.7).
+ */
+function penaltyPoints(item) {
+  let points = 0;
+  if (item.status && STATUS_SCORE_PENALTY[item.status] !== undefined) {
+    points += STATUS_SCORE_PENALTY[item.status];
+  }
+  if (item.riskContribution !== null && item.riskContribution !== undefined) {
+    points += item.riskContribution * RISK_SCORE_WEIGHT;
+  }
+  return points;
+}
+
+/** Display form of penaltyPoints: at most 2 decimals, no float noise. */
+function formatPoints(points) {
+  return Math.round(points * 100) / 100;
 }
 
 /**
@@ -136,7 +152,17 @@ function buildExplanation(evidence, state, confidence) {
   }
 
   if (!blocking && !restricting && !highRiskScore && !highRiskStatus) {
-    parts.push('No significant hazard evidence found; road is treated as accessible.');
+    // Phase 8C.7: evidence below the high-risk threshold still lowers the
+    // score, so name it instead of claiming there is no hazard evidence.
+    const minor = meaningful.filter((e) => penaltyPoints(e) > 0);
+    if (minor.length > 0) {
+      const described = minor
+        .map((e) => `${e.detail} (-${formatPoints(penaltyPoints(e))} points${isStale(e) ? ', stale' : ''})`)
+        .join('; ');
+      parts.push(`${described} — below the high-risk threshold; road is treated as accessible.`);
+    } else {
+      parts.push('No significant hazard evidence found; road is treated as accessible.');
+    }
   }
 
   parts.push(`Therefore ${state}.`);
@@ -159,11 +185,14 @@ function computeAccessibilityFromEvidence(evidence = [], { now = new Date() } = 
     .map((e) => ({
       name: e.type,
       value: e.riskContribution !== null && e.riskContribution !== undefined ? e.riskContribution / 100 : null,
+      // Exact score impact (Phase 8C.7): previously rounded per factor
+      // (e.g. -23 for a 22.5-point penalty), so factors could disagree
+      // with the score by rounding. null only when the item carries no
+      // score-bearing status and no risk contribution.
       contribution:
-        e.riskContribution !== null && e.riskContribution !== undefined
-          ? -Math.round(e.riskContribution * RISK_SCORE_WEIGHT)
-          : e.status && STATUS_SCORE_PENALTY[e.status] !== undefined
-          ? -STATUS_SCORE_PENALTY[e.status]
+        (e.riskContribution !== null && e.riskContribution !== undefined) ||
+        (e.status && STATUS_SCORE_PENALTY[e.status] !== undefined)
+          ? -formatPoints(penaltyPoints(e)) || 0
           : null,
       source: e.source,
       freshness: e.freshness,

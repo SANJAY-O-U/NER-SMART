@@ -5,6 +5,25 @@ const { ingestSachetAlerts } = require('../services/sachetService');
 const { associateAlertWithRoads } = require('../services/sachetRoadAssociation');
 const { computeDisasterRiskContribution } = require('../services/disasterRiskAdapter');
 const { isAlertExpired } = require('../services/disasterLifecycleService');
+const { getSource } = require('../services/dataSourceRegistry');
+
+/**
+ * Phase 8C.7: CURRENT NDMA SACHET feed availability, from the data source
+ * registry (updated on every fetch attempt). Deliberately distinct from
+ * each stored record's `sourceStatus`/`retrievedAt`, which only describe
+ * the fetch that wrote that record — a record saying 'LIVE' is NOT proof
+ * the feed is reachable now.
+ */
+function currentFeedStatus() {
+  const entry = getSource('NDMA_SACHET');
+  return {
+    source: 'NDMA_SACHET',
+    status: entry ? entry.status : 'UNKNOWN',
+    lastUpdated: entry ? entry.lastUpdated : null,
+    error: (entry && entry.error) || null,
+    note: "Current feed availability. Each record's sourceStatus/retrievedAt are retrieval-time provenance, not the feed's current state.",
+  };
+}
 
 /**
  * Persists one normalized alert: upsert by identifier (the CAP identity),
@@ -166,7 +185,8 @@ async function getActiveAlerts(req, res) {
   const alerts = await DisasterAlert.find({ lifecycleStatus: { $in: ['ACTIVE', 'UPDATED'] } })
     .sort({ sent: -1 })
     .select('-rawCapXml');
-  return success(res, alerts);
+  // `data` is unchanged; `feed` is an additive sibling (Phase 8C.7).
+  return res.status(200).json({ success: true, data: alerts, feed: currentFeedStatus() });
 }
 
 // GET /api/sachet/road/:roadId — disaster context for a road.
@@ -187,6 +207,7 @@ async function getDisasterContextForRoad(req, res) {
     district: road.district,
     activeAlertCount: alerts.length,
     alerts,
+    feed: currentFeedStatus(), // additive (Phase 8C.7): 0 alerts + UNAVAILABLE feed != "all clear"
   });
 }
 
