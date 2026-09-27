@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'api_service.dart';
 import 'connectivity_service.dart';
 import 'local_event_store.dart';
@@ -22,6 +23,37 @@ class SyncService {
   static Timer? _periodicTimer;
 
   static final _statusController = StreamController<String>.broadcast();
+
+  // Storage/network seams. Default to the real LocalEventStore/ApiService
+  // calls; tests replace them with in-memory fakes (no SQLite, no network).
+  @visibleForTesting
+  static Future<List<LocalIncidentEvent>> Function() loadAllEvents = LocalEventStore.getAll;
+  @visibleForTesting
+  static Future<List<LocalIncidentEvent>> Function() loadPendingEvents = LocalEventStore.getPendingSync;
+  @visibleForTesting
+  static Future<void> Function(LocalIncidentEvent) saveEvent = LocalEventStore.update;
+  @visibleForTesting
+  static Future<Map<String, dynamic>> Function(LocalIncidentEvent) sendIncident = _sendViaApi;
+
+  @visibleForTesting
+  static void resetTestSeams() {
+    loadAllEvents = LocalEventStore.getAll;
+    loadPendingEvents = LocalEventStore.getPendingSync;
+    saveEvent = LocalEventStore.update;
+    sendIncident = _sendViaApi;
+  }
+
+  static Future<Map<String, dynamic>> _sendViaApi(LocalIncidentEvent event) {
+    return ApiService.reportIncident(
+      type: event.eventType,
+      lat: event.latitude,
+      lng: event.longitude,
+      description: event.description,
+      locationMode: event.locationMode,
+      gpsAccuracyMeters: event.gpsAccuracyMeters,
+      clientEventId: event.eventId, // the idempotency key — safe to retry
+    );
+  }
   /// Emits a short human-readable status line each time a sync pass
   /// starts/finishes, for a UI banner ("Syncing 2 reports…", etc.).
   static Stream<String> get statusStream => _statusController.stream;
@@ -53,8 +85,46 @@ class SyncService {
     _periodicTimer = Timer.periodic(const Duration(minutes: 2), (_) => runSyncPass());
     // Also attempt one pass immediately — covers "app restarted with
     // pending events and connectivity already available" per the
-    // mission's required restart-recovery scenario.
-    runSyncPass();
+    // mission's required restart-recovery scenario. Interrupted events
+    // are re-queued first so that pass can pick them up.
+    unawaited(recoverThenSync());
+  }
+
+  /// Startup order: re-queue interrupted events, then run a sync pass.
+  @visibleForTesting
+  static Future<void> recoverThenSync() async {
+    try {
+      await recoverInterruptedEvents();
+    } catch (_) {
+      // Recovery must never stop sync; the next startup retries it.
+    }
+    await runSyncPass();
+  }
+
+  /// Restart recovery. At startup no upload can be in flight, so an event
+  /// still marked `syncing` was interrupted mid-upload (app killed/crashed),
+  /// and one still `localOnly` was interrupted between the initial insert
+  /// and its syncPending update. getPendingSync() never selects either
+  /// state, so without this they would be stranded forever.
+  ///
+  /// Both are moved to `syncPending`; nothing else changes — same eventId
+  /// (the backend's clientEventId idempotency key, so a resend of an
+  /// upload that did reach the server resolves to the SAME incident),
+  /// same payload, retryCount, lastSyncAttempt and createdAt. Events are
+  /// never deleted or duplicated. Idempotent: a second run finds nothing.
+  /// Skipped while a sync pass is running, where `syncing` is legitimate.
+  /// Returns the number of events re-queued.
+  static Future<int> recoverInterruptedEvents() async {
+    if (_running) return 0;
+    var recovered = 0;
+    for (final event in await loadAllEvents()) {
+      if (event.syncStatus == SyncStatus.localOnly || event.syncStatus == SyncStatus.syncing) {
+        event.syncStatus = SyncStatus.syncPending;
+        await saveEvent(event);
+        recovered += 1;
+      }
+    }
+    return recovered;
   }
 
   static void stop() {
@@ -73,7 +143,7 @@ class SyncService {
 
     _running = true;
     try {
-      final pending = await LocalEventStore.getPendingSync();
+      final pending = await loadPendingEvents();
       if (pending.isEmpty) return;
 
       _statusController.add('Syncing ${pending.length} report(s)…');
@@ -107,18 +177,10 @@ class SyncService {
     }
 
     event.syncStatus = SyncStatus.syncing;
-    await LocalEventStore.update(event);
+    await saveEvent(event);
 
     try {
-      final result = await ApiService.reportIncident(
-        type: event.eventType,
-        lat: event.latitude,
-        lng: event.longitude,
-        description: event.description,
-        locationMode: event.locationMode,
-        gpsAccuracyMeters: event.gpsAccuracyMeters,
-        clientEventId: event.eventId, // the idempotency key — safe to retry
-      );
+      final result = await sendIncident(event); // clientEventId = eventId (idempotent)
 
       // Only mark SYNCED on an actual server confirmation (including an
       // idempotent replay of an event we already sent) — never earlier.
@@ -126,7 +188,7 @@ class SyncService {
       event.syncStatus = SyncStatus.synced;
       event.lastSyncError = null;
       event.lastSyncAttempt = DateTime.now();
-      await LocalEventStore.update(event);
+      await saveEvent(event);
       return true;
     } on ApiException catch (e) {
       event.retryCount += 1;
@@ -137,14 +199,14 @@ class SyncService {
       // rule — but it's not worth bounded-retrying forever either way,
       // since the retryCount cap above already handles that uniformly.
       event.syncStatus = SyncStatus.syncFailed;
-      await LocalEventStore.update(event);
+      await saveEvent(event);
       return false;
     } catch (e) {
       event.retryCount += 1;
       event.lastSyncAttempt = DateTime.now();
       event.lastSyncError = 'Unexpected error: $e';
       event.syncStatus = SyncStatus.syncFailed;
-      await LocalEventStore.update(event);
+      await saveEvent(event);
       return false;
     }
   }
