@@ -9,7 +9,10 @@
  * `analyzeIncident()` and never re-implement this logic.
  *
  * Two modes, always returning the SAME shape:
- *   REAL_AI       - used only if ANTHROPIC_API_KEY is set in .env
+ *   REAL_AI       - the provider chosen by AI_PROVIDER (gemini | anthropic),
+ *                   used only when that provider's key is set; with
+ *                   AI_PROVIDER unset, Anthropic if ANTHROPIC_API_KEY is set
+ *                   (pre-Phase-10.2 behavior). `model` records which one.
  *   DEMO_FALLBACK - deterministic local scoring, always available, never
  *                   fails, never calls the network. This is what runs in
  *                   the demo unless a real key is configured.
@@ -40,6 +43,17 @@
 const REQUEST_TIMEOUT_MS = 8000; // same convention as weatherApiService.js/weatherService.js/sachetService.js
 const ANTHROPIC_MODEL = 'claude-sonnet-4-6';
 const VALID_SEVERITIES = ['LOW', 'MEDIUM', 'HIGH'];
+
+// Phase 10.2 — Gemini provider (raw HTTPS, same contract as Anthropic).
+// Default model per Phase 10.1 review of Google's model/deprecation docs;
+// overridable with GEMINI_MODEL without a code change.
+const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+// Headroom above the ~150-token JSON answer so model-internal reasoning
+// tokens (where applicable) cannot truncate it; a truncated answer is
+// rejected (finishReason !== 'STOP') and falls back anyway.
+const GEMINI_MAX_OUTPUT_TOKENS = 1024;
+const SUPPORTED_PROVIDERS = ['gemini', 'anthropic', 'fallback'];
 
 const HIGH_KEYWORDS = ['severe', 'collapsed', 'major', 'blocked', 'landslide', 'flood', 'washed away', 'impassable', 'critical', 'death', 'injur'];
 const MEDIUM_KEYWORDS = ['crack', 'pothole', 'partial', 'damage', 'debris', 'slow', 'minor flood', 'waterlogged'];
@@ -139,6 +153,11 @@ function validateParsedAiResponse(parsed) {
   return true;
 }
 
+/** The single incident-triage prompt shared by every real-AI provider. */
+function buildIncidentPrompt({ type, description }) {
+  return `You are a road-incident triage assistant. Given the incident type "${type}" and driver description "${description || '(no description provided)'}", respond with ONLY a JSON object with keys: classification (string), severity (one of LOW, MEDIUM, HIGH), confidence (number 0-1), summary (short string), rationale (short string explaining the classification, based only on the given type/description). No preamble, no markdown. Do not invent facts (casualties, road closures, coordinates, authorities) not present in the input.`;
+}
+
 /**
  * Optional real-AI path. Only attempted if ANTHROPIC_API_KEY is present in
  * the environment. Wrapped so any failure (network, timeout, quota,
@@ -151,7 +170,7 @@ async function analyzeWithRealAI({ type, description }, { fetchFn } = {}) {
   if (!apiKey) return null;
 
   try {
-    const prompt = `You are a road-incident triage assistant. Given the incident type "${type}" and driver description "${description || '(no description provided)'}", respond with ONLY a JSON object with keys: classification (string), severity (one of LOW, MEDIUM, HIGH), confidence (number 0-1), summary (short string), rationale (short string explaining the classification, based only on the given type/description). No preamble, no markdown. Do not invent facts (casualties, road closures, coordinates, authorities) not present in the input.`;
+    const prompt = buildIncidentPrompt({ type, description });
 
     const response = await fetchWithTimeout(
       'https://api.anthropic.com/v1/messages',
@@ -203,14 +222,130 @@ async function analyzeWithRealAI({ type, description }, { fetchFn } = {}) {
 }
 
 /**
- * Main entry point. Tries real AI first (only if configured), otherwise
- * uses the deterministic fallback. Always resolves — never rejects — so
- * incident creation never blocks or fails because of this call.
+ * Gemini's structured-output schema for the same five fields the shared
+ * validator checks. The schema narrows what Gemini returns, but its output
+ * is still passed through validateParsedAiResponse() before it is trusted.
+ */
+const GEMINI_RESPONSE_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    classification: { type: 'STRING' },
+    severity: { type: 'STRING', enum: VALID_SEVERITIES },
+    confidence: { type: 'NUMBER', minimum: 0, maximum: 1 },
+    summary: { type: 'STRING' },
+    rationale: { type: 'STRING' },
+  },
+  required: ['classification', 'severity', 'confidence', 'summary', 'rationale'],
+};
+
+/**
+ * Optional Gemini path (Phase 10.2). Only attempted when AI_PROVIDER=gemini
+ * and GEMINI_API_KEY is present. The key travels ONLY in the
+ * x-goog-api-key header — never in the URL, where request logs would keep
+ * it. Any failure (401/403/429/5xx, timeout, network, empty or blocked
+ * response, non-STOP finish, malformed JSON, invalid fields) returns null,
+ * which falls through to the deterministic fallback.
+ */
+async function analyzeWithGemini({ type, description }, { fetchFn } = {}) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+  const model = (process.env.GEMINI_MODEL || '').trim() || DEFAULT_GEMINI_MODEL;
+
+  try {
+    const response = await fetchWithTimeout(
+      `${GEMINI_API_BASE}/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: buildIncidentPrompt({ type, description }) }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            responseSchema: GEMINI_RESPONSE_SCHEMA,
+            maxOutputTokens: GEMINI_MAX_OUTPUT_TOKENS,
+          },
+        }),
+      },
+      { fetchFn }
+    );
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (data?.promptFeedback?.blockReason) return null; // prompt blocked by safety filters
+
+    const candidate = Array.isArray(data?.candidates) ? data.candidates[0] : null;
+    if (!candidate || candidate.finishReason !== 'STOP') return null; // SAFETY / MAX_TOKENS / RECITATION / missing
+    const text = candidate.content?.parts?.[0]?.text;
+    if (typeof text !== 'string' || !text.trim()) return null;
+
+    let parsed;
+    try {
+      parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
+    } catch (_err) {
+      return null; // malformed JSON -> rejected, not guessed at
+    }
+
+    if (!validateParsedAiResponse(parsed)) return null;
+
+    return {
+      classification: parsed.classification,
+      severity: parsed.severity,
+      confidence: Math.round(Number(parsed.confidence) * 100) / 100,
+      summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+      rationale: typeof parsed.rationale === 'string' ? parsed.rationale : null,
+      model,
+      generatedAt: new Date(),
+      source: 'REAL_AI',
+    };
+  } catch (_err) {
+    return null; // network/timeout/abort -> fallback
+  }
+}
+
+/**
+ * Phase 10.2 provider selection (pure; exported for tests).
+ *   AI_PROVIDER=gemini | anthropic | fallback (case-insensitive)
+ *   unset/blank -> unchanged pre-10.2 behavior: 'anthropic' if
+ *                  ANTHROPIC_API_KEY is set, otherwise 'fallback'
+ *   unknown     -> 'fallback' (flagged so the caller can warn)
+ */
+function resolveAiProvider(env = process.env) {
+  const raw = (env.AI_PROVIDER || '').trim().toLowerCase();
+  if (!raw) return { provider: env.ANTHROPIC_API_KEY ? 'anthropic' : 'fallback', unknown: false };
+  if (SUPPORTED_PROVIDERS.includes(raw)) return { provider: raw, unknown: false };
+  return { provider: 'fallback', unknown: true };
+}
+
+/**
+ * Main entry point. Tries the selected real-AI provider (only if
+ * configured), otherwise uses the deterministic fallback. Always resolves —
+ * never rejects — so incident creation never blocks or fails because of
+ * this call.
  */
 async function analyzeIncident({ type, description }, { fetchFn } = {}) {
-  const real = await analyzeWithRealAI({ type, description }, { fetchFn });
+  const { provider, unknown } = resolveAiProvider();
+  if (unknown) {
+    // The provider NAME only (sanitized, length-capped) — never any credential.
+    const shown = String(process.env.AI_PROVIDER).replace(/[^\w.-]/g, '').slice(0, 32);
+    console.warn(`[AI] unknown AI_PROVIDER "${shown}" — using DEMO_FALLBACK (supported: ${SUPPORTED_PROVIDERS.join(', ')})`);
+  }
+
+  let real = null;
+  if (provider === 'gemini') real = await analyzeWithGemini({ type, description }, { fetchFn });
+  else if (provider === 'anthropic') real = await analyzeWithRealAI({ type, description }, { fetchFn });
   if (real) return real;
   return analyzeWithFallback({ type, description });
 }
 
-module.exports = { analyzeIncident, analyzeWithFallback, analyzeWithRealAI, validateParsedAiResponse };
+module.exports = {
+  analyzeIncident,
+  analyzeWithFallback,
+  analyzeWithRealAI,
+  analyzeWithGemini,
+  resolveAiProvider,
+  validateParsedAiResponse,
+  DEFAULT_GEMINI_MODEL,
+};
