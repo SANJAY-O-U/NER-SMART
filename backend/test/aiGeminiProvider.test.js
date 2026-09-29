@@ -5,6 +5,7 @@ const {
   analyzeWithGemini,
   resolveAiProvider,
   DEFAULT_GEMINI_MODEL,
+  GEMINI_REQUEST_TIMEOUT_MS,
 } = require('../src/services/aiService');
 const { buildIncidentEvidence } = require('../src/services/accessibilityEvidence');
 const { computeAccessibilityFromEvidence } = require('../src/services/accessibilityEngine');
@@ -126,6 +127,141 @@ test('B. request uses generateContent, x-goog-api-key header, key never in the U
     assert.equal(cfg.responseSchema.properties.confidence.minimum, 0);
     assert.equal(cfg.responseSchema.properties.confidence.maximum, 1);
     assert.deepEqual([...cfg.responseSchema.required].sort(), ['classification', 'confidence', 'rationale', 'severity', 'summary']);
+  });
+});
+
+// --- B2-B3. Phase 10.3.2 latency hardening ------------------------------
+
+test('B2. request sets generationConfig.thinkingConfig.thinkingLevel = "minimal", other config unchanged', async () => {
+  await withEnv(GEMINI_ENV, async () => {
+    const { fn, calls } = recordingFetch(fakeResponse({ body: geminiBody() }));
+    await analyzeIncident(INPUT, { fetchFn: fn });
+    const cfg = JSON.parse(calls[0].options.body).generationConfig;
+    assert.deepEqual(cfg.thinkingConfig, { thinkingLevel: 'minimal' });
+    assert.equal(cfg.maxOutputTokens, 1024);
+    assert.deepEqual(Object.keys(cfg).sort(), ['maxOutputTokens', 'responseMimeType', 'responseSchema', 'thinkingConfig']);
+  });
+});
+
+/** A fetchFn that never resolves on its own; it rejects only when its signal aborts. */
+function hangingFetch() {
+  const state = { called: null, signal: null };
+  state.called = new Promise((resolveCalled) => {
+    state.fn = (url, options) => {
+      state.signal = options.signal;
+      resolveCalled();
+      return new Promise((_resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+      });
+    };
+  });
+  return state;
+}
+
+test('B3. Gemini timeout is 10s (below the 15s Flutter POST timeout): pending at 9.999s, aborted at 10s, then falls back', async (t) => {
+  assert.equal(GEMINI_REQUEST_TIMEOUT_MS, 10000);
+  assert.ok(GEMINI_REQUEST_TIMEOUT_MS < 15000, 'must stay below flutter_app api_service.dart POST timeout');
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  await withEnv(GEMINI_ENV, async () => {
+    const h = hangingFetch();
+    const pending = analyzeIncident(INPUT, { fetchFn: h.fn });
+    await h.called;
+    t.mock.timers.tick(9999);
+    assert.equal(h.signal.aborted, false, 'must not abort before 10s');
+    t.mock.timers.tick(1);
+    assert.equal(h.signal.aborted, true);
+    assertFallback(await pending);
+  });
+});
+
+test('B4. Anthropic keeps the shared 8s timeout (unchanged)', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  await withEnv({ AI_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: FAKE_ANTHROPIC_KEY }, async () => {
+    const h = hangingFetch();
+    const pending = analyzeIncident(INPUT, { fetchFn: h.fn });
+    await h.called;
+    t.mock.timers.tick(7999);
+    assert.equal(h.signal.aborted, false);
+    t.mock.timers.tick(1);
+    assert.equal(h.signal.aborted, true);
+    assertFallback(await pending);
+  });
+});
+
+// --- B5. Phase 10.3.9 sanitized failure logging -------------------------
+
+/** Runs fn with console.warn captured; returns { result, warnings }. */
+async function captureWarnings(fn) {
+  const warnings = [];
+  const orig = console.warn;
+  console.warn = (...args) => warnings.push(args.join(' '));
+  try {
+    return { result: await fn(), warnings };
+  } finally {
+    console.warn = orig;
+  }
+}
+
+const SECRET_DESCRIPTION = 'UNIQUE-DRIVER-TEXT-7f3a road near km 42';
+const RAW_PROVIDER_MARKER = 'RAW-PROVIDER-BODY-9c1e';
+
+const LOG_CASES = [
+  ['http 503', () => fakeResponse({ status: 503, body: { error: { code: 503, status: 'UNAVAILABLE', message: RAW_PROVIDER_MARKER } } }), 'http_error', 503],
+  ['http 401', () => fakeResponse({ status: 401, body: { error: { message: RAW_PROVIDER_MARKER } } }), 'http_error', 401],
+  ['http 429', () => fakeResponse({ status: 429, body: { error: { message: RAW_PROVIDER_MARKER } } }), 'http_error', 429],
+  ['timeout', () => { throw Object.assign(new Error(RAW_PROVIDER_MARKER), { name: 'AbortError' }); }, 'timeout', null],
+  ['network', () => { throw new Error(`getaddrinfo ENOTFOUND ${RAW_PROVIDER_MARKER}`); }, 'network_error', null],
+  ['prompt blocked', () => fakeResponse({ body: { promptFeedback: { blockReason: 'SAFETY' } } }), 'blocked', 200],
+  ['finish SAFETY', () => fakeResponse({ body: geminiBody({ finishReason: 'SAFETY' }) }), 'blocked', 200],
+  ['finish MAX_TOKENS', () => fakeResponse({ body: geminiBody({ finishReason: 'MAX_TOKENS' }) }), 'invalid_response', 200],
+  ['no candidates', () => fakeResponse({ body: { candidates: [] } }), 'invalid_response', 200],
+  ['empty text', () => fakeResponse({ body: geminiBody({ text: '  ' }) }), 'invalid_response', 200],
+  ['malformed JSON', () => fakeResponse({ body: geminiBody({ text: `{${RAW_PROVIDER_MARKER}` }) }), 'parse_error', 200],
+  ['invalid fields', () => fakeResponse({ body: geminiBody({ fields: { ...VALID_FIELDS, severity: RAW_PROVIDER_MARKER } }) }), 'invalid_response', 200],
+  ['non-JSON body', () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError(RAW_PROVIDER_MARKER); } }), 'invalid_response', 200],
+];
+
+for (const [label, respond, category, status] of LOG_CASES) {
+  test(`B5. ${label}: exactly one sanitized warning (failure=${category}${status ? `, status=${status}` : ''}), fallback unchanged`, async () => {
+    await withEnv({ ...GEMINI_ENV, GEMINI_MODEL: 'gemini-3.6-flash' }, async () => {
+      let calls = 0;
+      const fn = async () => { calls += 1; return respond(); };
+      const { result, warnings } = await captureWarnings(() =>
+        analyzeIncident({ type: 'LANDSLIDE', description: SECRET_DESCRIPTION }, { fetchFn: fn })
+      );
+
+      assertFallback(result);
+      assert.equal(calls, 1); // still no retry
+      assert.equal(warnings.length, 1);
+      const expected = `[AI] provider=gemini model=gemini-3.6-flash failure=${category}${status ? ` status=${status}` : ''} — using DEMO_FALLBACK`;
+      assert.equal(warnings[0], expected);
+      for (const forbidden of [FAKE_GEMINI_KEY, SECRET_DESCRIPTION, RAW_PROVIDER_MARKER, 'x-goog-api-key', 'generationConfig', 'road-incident triage']) {
+        assert.ok(!warnings[0].includes(forbidden), `log must not contain ${forbidden}`);
+      }
+    });
+  });
+}
+
+test('B5. a successful Gemini call and a missing key both log nothing', async () => {
+  await withEnv(GEMINI_ENV, async () => {
+    const { fn } = recordingFetch(fakeResponse({ body: geminiBody() }));
+    const { result, warnings } = await captureWarnings(() => analyzeIncident(INPUT, { fetchFn: fn }));
+    assert.equal(result.source, 'REAL_AI');
+    assert.equal(warnings.length, 0);
+  });
+  await withEnv({ AI_PROVIDER: 'gemini' }, async () => {
+    const { warnings } = await captureWarnings(() => analyzeIncident(INPUT, { fetchFn: neverCalled().fn }));
+    assert.equal(warnings.length, 0);
+  });
+});
+
+test('B5. an unsafe GEMINI_MODEL value is sanitized in the log', async () => {
+  await withEnv({ ...GEMINI_ENV, GEMINI_MODEL: 'bad model\n[AI] forged line' }, async () => {
+    const { fn } = recordingFetch(fakeResponse({ status: 500 }));
+    const { warnings } = await captureWarnings(() => analyzeIncident(INPUT, { fetchFn: fn }));
+    assert.equal(warnings.length, 1);
+    assert.ok(!warnings[0].includes('\n'));
+    assert.match(warnings[0], /^\[AI\] provider=gemini model=[\w.-]+ failure=http_error status=500 — using DEMO_FALLBACK$/);
   });
 });
 

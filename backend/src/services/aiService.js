@@ -53,6 +53,12 @@ const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models
 // tokens (where applicable) cannot truncate it; a truncated answer is
 // rejected (finishReason !== 'STOP') and falls back anyway.
 const GEMINI_MAX_OUTPUT_TOKENS = 1024;
+// Phase 10.3.2/10.3.9 — Gemini-only timeout, kept well below the Flutter
+// incident POST timeout (15s) so the driver app gets a response even when
+// Gemini is slow; REQUEST_TIMEOUT_MS itself stays 8s for Anthropic.
+// Thinking is pinned to "minimal" to keep triage latency low.
+const GEMINI_REQUEST_TIMEOUT_MS = 10000;
+const GEMINI_THINKING_LEVEL = 'minimal';
 const SUPPORTED_PROVIDERS = ['gemini', 'anthropic', 'fallback'];
 
 const HIGH_KEYWORDS = ['severe', 'collapsed', 'major', 'blocked', 'landslide', 'flood', 'washed away', 'impassable', 'critical', 'death', 'injur'];
@@ -128,9 +134,9 @@ function analyzeWithFallback({ type, description = '' }) {
  * `fetchFn` is injectable so tests exercise the real request/validation
  * logic against fixtures, with zero network access.
  */
-async function fetchWithTimeout(url, options, { fetchFn = fetch } = {}) {
+async function fetchWithTimeout(url, options, { fetchFn = fetch, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetchFn(url, { ...options, signal: controller.signal });
   } finally {
@@ -245,11 +251,29 @@ const GEMINI_RESPONSE_SCHEMA = {
  * it. Any failure (401/403/429/5xx, timeout, network, empty or blocked
  * response, non-STOP finish, malformed JSON, invalid fields) returns null,
  * which falls through to the deterministic fallback.
+ *
+ * Phase 10.3.9: every such failure emits ONE sanitized warning (provider,
+ * model, category, HTTP status when known) so a production fallback is
+ * never silent. Never the key, headers, request body, incident text or
+ * any part of the provider's response.
  */
+const GEMINI_BLOCKED_FINISH_REASONS = ['SAFETY', 'RECITATION', 'BLOCKLIST', 'PROHIBITED_CONTENT', 'SPII'];
+
+function logGeminiFailure(model, category, status) {
+  const shownModel = String(model).replace(/[^\w.-]/g, '').slice(0, 64);
+  const shownStatus = Number.isInteger(status) ? ` status=${status}` : '';
+  console.warn(`[AI] provider=gemini model=${shownModel} failure=${category}${shownStatus} — using DEMO_FALLBACK`);
+}
+
 async function analyzeWithGemini({ type, description }, { fetchFn } = {}) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
   const model = (process.env.GEMINI_MODEL || '').trim() || DEFAULT_GEMINI_MODEL;
+  let status; // set once an HTTP response exists
+  const fail = (category) => {
+    logGeminiFailure(model, category, status);
+    return null;
+  };
 
   try {
     const response = await fetchWithTimeout(
@@ -266,29 +290,35 @@ async function analyzeWithGemini({ type, description }, { fetchFn } = {}) {
             responseMimeType: 'application/json',
             responseSchema: GEMINI_RESPONSE_SCHEMA,
             maxOutputTokens: GEMINI_MAX_OUTPUT_TOKENS,
+            thinkingConfig: { thinkingLevel: GEMINI_THINKING_LEVEL },
           },
         }),
       },
-      { fetchFn }
+      { fetchFn, timeoutMs: GEMINI_REQUEST_TIMEOUT_MS }
     );
 
-    if (!response.ok) return null;
+    status = response.status;
+    if (!response.ok) return fail('http_error');
     const data = await response.json();
-    if (data?.promptFeedback?.blockReason) return null; // prompt blocked by safety filters
+    if (data?.promptFeedback?.blockReason) return fail('blocked'); // prompt blocked by safety filters
 
     const candidate = Array.isArray(data?.candidates) ? data.candidates[0] : null;
-    if (!candidate || candidate.finishReason !== 'STOP') return null; // SAFETY / MAX_TOKENS / RECITATION / missing
+    if (!candidate) return fail('invalid_response');
+    if (candidate.finishReason !== 'STOP') {
+      // SAFETY / RECITATION / ... -> blocked; MAX_TOKENS / missing / other -> invalid_response
+      return fail(GEMINI_BLOCKED_FINISH_REASONS.includes(candidate.finishReason) ? 'blocked' : 'invalid_response');
+    }
     const text = candidate.content?.parts?.[0]?.text;
-    if (typeof text !== 'string' || !text.trim()) return null;
+    if (typeof text !== 'string' || !text.trim()) return fail('invalid_response');
 
     let parsed;
     try {
       parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
     } catch (_err) {
-      return null; // malformed JSON -> rejected, not guessed at
+      return fail('parse_error'); // malformed JSON -> rejected, not guessed at
     }
 
-    if (!validateParsedAiResponse(parsed)) return null;
+    if (!validateParsedAiResponse(parsed)) return fail('invalid_response');
 
     return {
       classification: parsed.classification,
@@ -300,8 +330,11 @@ async function analyzeWithGemini({ type, description }, { fetchFn } = {}) {
       generatedAt: new Date(),
       source: 'REAL_AI',
     };
-  } catch (_err) {
-    return null; // network/timeout/abort -> fallback
+  } catch (err) {
+    // Before a response: timeout (our abort) or network failure.
+    // After a response: an unreadable (non-JSON) body.
+    if (status !== undefined) return fail('invalid_response');
+    return fail(err?.name === 'AbortError' ? 'timeout' : 'network_error');
   }
 }
 
@@ -348,4 +381,5 @@ module.exports = {
   resolveAiProvider,
   validateParsedAiResponse,
   DEFAULT_GEMINI_MODEL,
+  GEMINI_REQUEST_TIMEOUT_MS,
 };
