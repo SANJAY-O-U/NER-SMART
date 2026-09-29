@@ -11,6 +11,8 @@ const STATE_STYLE = {
 /**
  * Lets the user pick a road, see its current risk, and trigger the
  * SIMULATE LANDSLIDE demo flow (POST /api/simulation/landslide).
+ * Phase 10.5.3: the demo control is only rendered when `onSimulate` is
+ * provided (never in a read-only deployment).
  */
 export default function RoadRiskCard({
   roads,
@@ -73,21 +75,23 @@ export default function RoadRiskCard({
         </div>
       )}
 
-      <div className="rounded-md border border-dashed border-amber-300 bg-amber-50/60 p-2.5 space-y-1.5">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded bg-amber-200 text-amber-800">
-            WHAT-IF / DEMO
-          </span>
-          <span className="text-[10.5px] text-slate-500">Does not reflect a real event</span>
+      {onSimulate && (
+        <div className="rounded-md border border-dashed border-amber-300 bg-amber-50/60 p-2.5 space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded bg-amber-200 text-amber-800">
+              WHAT-IF / DEMO
+            </span>
+            <span className="text-[10.5px] text-slate-500">Does not reflect a real event</span>
+          </div>
+          <button
+            onClick={() => onSimulate(selectedRoad?.id)}
+            disabled={!selectedRoad || simulating}
+            className="w-full text-sm font-semibold px-3 py-2 rounded-md border border-amber-400 bg-white text-amber-800 hover:bg-amber-100 disabled:opacity-50 transition"
+          >
+            {simulating ? "Simulating…" : "RUN LANDSLIDE SIMULATION"}
+          </button>
         </div>
-        <button
-          onClick={() => onSimulate(selectedRoad?.id)}
-          disabled={!selectedRoad || simulating}
-          className="w-full text-sm font-semibold px-3 py-2 rounded-md border border-amber-400 bg-white text-amber-800 hover:bg-amber-100 disabled:opacity-50 transition"
-        >
-          {simulating ? "Simulating…" : "RUN LANDSLIDE SIMULATION"}
-        </button>
-      </div>
+      )}
 
       {simulationError && <p className="text-xs text-red-600">{simulationError}</p>}
 

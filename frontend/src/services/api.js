@@ -15,8 +15,16 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api
 // for local development (see .env.example). Only ever attached to
 // state-changing requests (see WRITE_METHODS below) — GET requests never
 // send it, matching the backend's own public-GET-by-default design.
-const API_KEY = import.meta.env.VITE_API_KEY;
+//
+// Phase 10.5.3: LOCAL DEVELOPMENT ONLY. The key is read only under
+// `vite dev`, and vite.config.js refuses to build while VITE_API_KEY is
+// set, so no key can reach a deployed bundle. Deployed dashboards are
+// read-only; protected backend writes stay fail-closed (401) without it.
+const API_KEY = import.meta.env.DEV ? import.meta.env.VITE_API_KEY : undefined;
 const WRITE_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
+
+/** True only in local development with VITE_API_KEY set; always false in deployed builds. */
+export const writesEnabled = Boolean(API_KEY);
 
 export class ApiError extends Error {
   constructor(message, status, details) {
@@ -65,8 +73,9 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
+    // The backend's error shape is { success: false, error: "..." }.
     const message =
-      (data && data.message) || `Request failed with status ${response.status}`;
+      (data && (data.message || data.error)) || `Request failed with status ${response.status}`;
     throw new ApiError(message, response.status, data);
   }
 

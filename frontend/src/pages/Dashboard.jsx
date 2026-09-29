@@ -26,6 +26,7 @@ import {
   getDisasterContextForRoad,
   getRoadAccessibility,
   resetDemo,
+  writesEnabled,
 } from "../services/api";
 
 // Poll interval for picking up new driver-reported incidents without
@@ -39,6 +40,7 @@ export default function Dashboard() {
   const [alerts, setAlerts] = useState([]);
   const [incidents, setIncidents] = useState([]);
   const [updatingIncidentId, setUpdatingIncidentId] = useState(null);
+  const [incidentUpdateError, setIncidentUpdateError] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -203,14 +205,18 @@ export default function Dashboard() {
   }, []);
 
   const handleUpdateIncidentStatus = async (incidentId, status) => {
+    if (!writesEnabled) return; // read-only deployment: never attempt a protected PATCH
     setUpdatingIncidentId(incidentId);
+    setIncidentUpdateError(null);
     try {
       const updated = await updateIncidentStatus(incidentId, status);
       setIncidents((current) =>
         current.map((inc) => (inc.id === incidentId ? { ...inc, ...updated } : inc))
       );
     } catch (err) {
-      setError(err.message || "Failed to update incident status.");
+      // Shown inside the incident panel — a failed write must not replace
+      // the whole (read-only-usable) dashboard with the full-page error.
+      setIncidentUpdateError(err.message || "Failed to update incident status.");
     } finally {
       setUpdatingIncidentId(null);
     }
@@ -293,7 +299,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <Header onRefresh={() => loadAll({ silent: true })} refreshing={refreshing} onResetDemo={handleResetDemo} resetting={resetting} resetError={resetError} />
+        <Header onRefresh={() => loadAll({ silent: true })} refreshing={refreshing} onResetDemo={writesEnabled ? handleResetDemo : undefined} resetting={resetting} resetError={resetError} />
         <LoadingSpinner label="Loading command center…" />
       </div>
     );
@@ -302,7 +308,7 @@ export default function Dashboard() {
   if (error) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <Header onRefresh={() => loadAll({ silent: true })} refreshing={refreshing} onResetDemo={handleResetDemo} resetting={resetting} resetError={resetError} />
+        <Header onRefresh={() => loadAll({ silent: true })} refreshing={refreshing} onResetDemo={writesEnabled ? handleResetDemo : undefined} resetting={resetting} resetError={resetError} />
         <ErrorMessage message={error} onRetry={() => loadAll()} />
       </div>
     );
@@ -310,7 +316,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Header onRefresh={() => loadAll({ silent: true })} refreshing={refreshing} onResetDemo={handleResetDemo} resetting={resetting} resetError={resetError} />
+      <Header onRefresh={() => loadAll({ silent: true })} refreshing={refreshing} onResetDemo={writesEnabled ? handleResetDemo : undefined} resetting={resetting} resetError={resetError} />
 
       <main className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-[1600px] mx-auto">
         {/* OPERATIONAL OVERVIEW — compact KPI row, all values from real fetched state */}
@@ -362,7 +368,7 @@ export default function Dashboard() {
               roads={roads}
               selectedRoadId={selectedRoadId}
               onSelectRoad={setSelectedRoadId}
-              onSimulate={handleSimulateLandslide}
+              onSimulate={writesEnabled ? handleSimulateLandslide : undefined}
               simulating={simulating}
               simulationResult={simulationResult}
               simulationError={simulationError}
@@ -376,8 +382,9 @@ export default function Dashboard() {
             <IncidentPanel
               key={incidentPanelKey}
               incidents={incidents}
-              onUpdateStatus={handleUpdateIncidentStatus}
+              onUpdateStatus={writesEnabled ? handleUpdateIncidentStatus : undefined}
               updatingId={updatingIncidentId}
+              updateError={incidentUpdateError}
             />
           </Card>
         </div>

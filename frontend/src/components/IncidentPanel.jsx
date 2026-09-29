@@ -116,8 +116,13 @@ function OperationalImpactPanel({ impact, loading, error }) {
  * Shows every reported incident (driver-submitted or simulated) with its
  * AI analysis and lets an officer move it through the status workflow:
  * REPORTED -> AI_ANALYSED -> VERIFIED -> ACTION_REQUIRED -> RESOLVED.
+ *
+ * Phase 10.5.3: without `onUpdateStatus` (read-only deployment — no
+ * browser write key) the workflow buttons are hidden and no protected
+ * PATCH is ever attempted. `updateError` shows a failed update here,
+ * inside the panel, instead of replacing the whole dashboard.
  */
-export default function IncidentPanel({ incidents, onUpdateStatus, updatingId }) {
+export default function IncidentPanel({ incidents, onUpdateStatus, updatingId, updateError }) {
   const safeIncidents = Array.isArray(incidents) ? incidents : [];
 
   const [expandedId, setExpandedId] = useState(null);
@@ -155,6 +160,12 @@ export default function IncidentPanel({ incidents, onUpdateStatus, updatingId })
 
   return (
     <ul className="divide-y divide-slate-100 max-h-96 overflow-y-auto">
+      {!onUpdateStatus && (
+        <li className="pb-2 text-[11px] text-slate-500">
+          Read-only in this deployment — incident status changes are not available from this dashboard.
+        </li>
+      )}
+      {updateError && <li className="py-2 text-xs text-red-600">{updateError}</li>}
       {sorted.map((incident) => {
         const flow = STATUS_FLOW[incident.status];
         const ai = incident.aiResult;
@@ -226,7 +237,7 @@ export default function IncidentPanel({ incidents, onUpdateStatus, updatingId })
                     {isExpanded ? "Hide Impact" : "View Impact"}
                   </button>
                 )}
-                {flow && (
+                {flow && onUpdateStatus && (
                   <button
                     onClick={() => onUpdateStatus(incident.id, flow.next)}
                     disabled={updatingId === incident.id}
