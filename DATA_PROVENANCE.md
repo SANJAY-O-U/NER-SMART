@@ -10,14 +10,69 @@ more current than it actually is.
 |---|---|
 | **Dataset** | `INDIA_NATIONAL_HIGHWAY.geojson` |
 | **Repository** | [`datta07/INDIAN-SHAPEFILES`](https://github.com/datta07/INDIAN-SHAPEFILES) |
-| **Discovered via** | [`yashveeeeeeer/india-geodata`](https://github.com/yashveeeeeeer/india-geodata), an open-data aggregator that indexes this dataset alongside official MoRTH/GatiShakti sources |
-| **License** | MIT (see the source repo's `LICENSE` file) |
-| **Acquisition date** | 2026-09-15 |
-| **Geographic coverage extracted** | Bounding box `91.5°E–94.3°E, 24.5°N–26.3°N` — the Guwahati↔Imphal corridor |
+| **Path in repository** | `INDIA/INDIA_NATIONAL_HIGHWAY.geojson` (branch `master`) |
+| **Verified upstream commit** | `ca0fb2be45a5ce722a32831b1a9bee3213b11b25` (2025-06-05, "changed NH file") — the commit that last changed this file upstream |
+| **Verified upstream git blob** | `5a2f31b661036853691f7486251c0c300a7e7847` |
+| **Verified upstream SHA-256** | `f6c75e7686b50d52a8b61243f3dd8ae5c6b9f29d348416106fe871eda4497735` |
+| **Verified upstream size** | 100,076,161 bytes (62,031 features) |
+| **Discovered via** | [`yashveeeeeeer/india-geodata`](https://github.com/yashveeeeeeer/india-geodata), an open-data aggregator that indexes this dataset alongside official MoRTH/GatiShakti sources. This was only a pointer used to find the dataset; it is not evidence of the dataset's own origin (see "What this data is NOT"). |
+| **License** | MIT. Upstream license text: [`backend/data/sources/LICENSE.datta07-INDIAN-SHAPEFILES.txt`](backend/data/sources/LICENSE.datta07-INDIAN-SHAPEFILES.txt); attribution: [`NOTICE.md`](NOTICE.md) |
+| **Acquisition date** | 2026-09-15 (recorded by this project at acquisition; independently verified on 2026-10-02, see below) |
+| **Geographic coverage extracted** | Features with any vertex inside `91.5°E–94.3°E, 24.5°N–26.3°N` — the Guwahati↔Imphal corridor |
 | **Highways included** | NH 27 (Guwahati → Daboka), NH 29 (Daboka → Dimapur → Kohima → Jessami), NH 2 (Jessami/Karong → Imphal) |
-| **Features imported** | 260 LineString segments |
-| **Transformation performed** | Filtered the national (~62,000-feature, ~100MB) dataset down to the four highway names (`NH 27`, `NH 29`, `NH 2`, and a stray `NH  27` double-space variant) whose geometry falls inside the corridor bounding box. No coordinates were altered, simplified, or generated. |
-| **Local copy** | `backend/data/sources/nh_guwahati_imphal_corridor.geojson` |
+| **Features imported** | 260 LineString segments (NH 27: 183, NH 29: 54, NH 2: 23) |
+| **Transformation performed** | Feature subset only, by the verified extraction rule below. No feature, coordinate or property was altered, simplified, or generated. |
+| **Local copy** | `backend/data/sources/nh_guwahati_imphal_corridor.geojson` (948,047 bytes, SHA-256 `36c1116bd9b8b12173a66caf6234cb3472baf287302cf36021af20f718d5f149`) |
+| **Production `source` value** | `datta07/INDIAN-SHAPEFILES (MIT) — INDIA_NATIONAL_HIGHWAY.geojson` on all 260 roads (set 2026-10-02; before that the importer's placeholder `unspecified source (pass --source=)` was stored because `--source` had not been passed at import) |
+| **Production `sourceVintage` value** | `null` on all 260 roads — intentionally; see "Vintage is UNKNOWN" below |
+
+## Independent verification of the upstream identity (2026-10-02)
+
+The upstream identity of the road data is **independently verified**, not
+merely documented. On 2026-10-02 the complete upstream file was downloaded
+from the public repository
+(`https://raw.githubusercontent.com/datta07/INDIAN-SHAPEFILES/master/INDIA/INDIA_NATIONAL_HIGHWAY.geojson`)
+into scratch space outside this repository, and:
+
+- Its size (100,076,161 bytes) and its recomputed git blob hash
+  (`5a2f31b661036853691f7486251c0c300a7e7847`) equal the values GitHub
+  reports for that path; its SHA-256 is recorded in the table above. It is a
+  `FeatureCollection` of 62,031 features with 62,031 unique `OBJECTID`s and
+  no embedded metadata.
+- **Exact feature subset.** Each of the 260 features in
+  `nh_guwahati_imphal_corridor.geojson`, and each of the 260 road documents in
+  the production database (`ner-smart-prod.roads`, matched through
+  `sourceId` = `OBJECTID`), has an upstream feature with the same `OBJECTID`
+  whose geometry type, coordinates and all properties are identical. There
+  are no unmatched features. The 260-road dataset is therefore an exact
+  feature subset of the upstream file.
+- **Extraction rule reproduces exactly 260 features.** The rule is: road name
+  is one of `NH 27`, `NH 29`, `NH 2` or `NH  27` (double space) **AND** *any
+  vertex* of the feature lies inside longitude 91.5–94.3 and latitude
+  24.5–26.3. Upstream holds 2,511 features with those names (`NH 27`: 2,239;
+  `NH 2`: 183; `NH 29`: 88; `NH  27`: 1); the rule selects exactly the 260
+  features of the corridor file — none missing, none extra. The `NH  27`
+  variant contributes no feature to the 260. Stricter readings do not
+  reproduce the file (all vertices inside the box: 254 features; middle
+  vertex inside: 258). Because the rule keeps every feature that has at least
+  one vertex inside the box, whole features are kept and the extracted
+  geometry extends slightly beyond the box
+  (longitude 91.6683–94.3862, latitude 24.3460–26.3136).
+- **Upstream state.** The file was added upstream on 2022-02-21 (a different,
+  31,796,424-byte version) and last changed on 2025-06-05 (commit
+  `ca0fb2be45a5ce722a32831b1a9bee3213b11b25`, the version verified here). At
+  verification time upstream `master` was at
+  `08490eaab1b9bb4b55addfb1d2c742586c8d22e0` (2026-09-19) and had not
+  changed this file since 2025-06-05, so the verified blob predates the
+  recorded acquisition date of 2026-09-15.
+
+To re-verify: download the file at that commit, compare its SHA-256 and git
+blob hash with the values above, then match each `OBJECTID` of the corridor
+file (or each production road's `sourceId`) to the upstream feature and
+compare geometry and properties, and re-apply the extraction rule.
+
+**What this does not establish:** when any road was surveyed or digitised, the
+date of any individual feature, or where the upstream project obtained its data.
 
 ### ⚠️ Important — what this data is NOT
 
@@ -36,10 +91,23 @@ more current than it actually is.
   status source (field reports, the future accessibility engine, or an
   official feed) says otherwise. The UI renders `UNKNOWN` as neutral gray
   with a dashed line — never green ("open") by default.
-- **Data vintage is approximate.** The source repository documents its
-  data as "primarily 2019, with ongoing updates" and does not timestamp
-  individual features. We record this as `sourceVintage` on each road
-  rather than inventing a precise date.
+- **Vintage is UNKNOWN, and `sourceVintage` is intentionally null.** The
+  upstream README states "Data Vintage: Primarily 2019 (with ongoing
+  updates)" for the repository as a whole. The data does not timestamp
+  individual features, and this particular file was replaced upstream on
+  2025-06-05, so that statement does not establish the vintage of these
+  roads. The 2025-06-05 commit date records when this version of the file
+  appeared in the upstream repository, not when any road was mapped.
+  Production `sourceVintage` is therefore `null` on all 260 roads, and must
+  stay `null` until a documented vintage for this dataset exists. (An
+  earlier version of this document said the vintage was recorded as
+  `sourceVintage` on each road. That was not the case for the production
+  roads: the importer's `--vintage` option was not used for that import, and
+  all 260 production roads hold `null`.)
+- **The upstream names no original data source.** Its README states none,
+  and beyond the MIT licence it gives no attribution. This project makes no
+  claim about the dataset's original or official origin, including any claim
+  of MoRTH or PM GatiShakti provenance.
 - **No `state`/`district` attribution.** The source properties
   (`OBJECTID`, `Name`, `Road_Type`, `Class_Code`, `Lane`, `Oneway`,
   elevation/shape fields) do not include administrative boundaries. Those
@@ -94,6 +162,8 @@ designation going forward.
 |---|---|
 | Official government API access (Bhuvan/GatiShakti direct) | Not attempted — no credentials, and the raw formats are heavier than an MVP first phase needs |
 | Road closure/accessibility status | Not available from this source — all imported roads are `UNKNOWN` |
+| Data vintage (per road or per dataset) | Unknown — `sourceVintage` is `null` on all 260 roads by design |
+| Original (upstream-of-upstream) data origin | Not stated by the upstream repository; no claim is made |
 | State/district attribution | Not available from this source — left `null` |
 | Coverage beyond the Guwahati–Imphal corridor | Not imported yet — architecture supports it (see "second corridor" note below) |
 | Live/DB integration testing of the import script | Not possible in the sandbox this was built in (no MongoDB Atlas access) — validated the full 260-feature dataset against the import script's validation logic instead (0 invalid features), and unit-tested the validation/confidence logic directly |

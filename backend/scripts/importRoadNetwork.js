@@ -5,9 +5,20 @@
  * of road LineStrings into the Road collection.
  *
  * Usage:
- *   node scripts/importRoadNetwork.js <path-to-geojson> [--corridor="Guwahati-Imphal"] [--source="..."]
+ *   node scripts/importRoadNetwork.js <path-to-geojson> [--corridor="Guwahati-Imphal"] [--source="..."] [--vintage="..."]
  *
- * Example (the Phase 1 corridor dataset):
+ * Options:
+ *   --corridor  free-text corridor name stored on each road (null if omitted).
+ *   --source    provenance string stored in `source`. It is PART OF THE
+ *               IMPORT IDENTITY (see Duplicate-safety below). If omitted, the
+ *               placeholder "unspecified source (pass --source=)" is stored.
+ *   --vintage   stored in `sourceVintage` (null if omitted). Pass it only with
+ *               a vintage that is documented for the dataset; never guess one.
+ *               The road data in production deliberately has no vintage, see
+ *               DATA_PROVENANCE.md.
+ *
+ * Example (the Phase 1 corridor dataset; this is the `source` value stored on
+ * the 260 production roads — see DATA_PROVENANCE.md and NOTICE.md):
  *   node scripts/importRoadNetwork.js data/sources/nh_guwahati_imphal_corridor.geojson \
  *     --corridor="Guwahati-Imphal" \
  *     --source="datta07/INDIAN-SHAPEFILES (MIT) — INDIA_NATIONAL_HIGHWAY.geojson"
@@ -15,7 +26,14 @@
  * Duplicate-safety: each feature is upserted keyed on (source, sourceId),
  * where sourceId is the feature's own OBJECTID (or `id`, or its array
  * index as a last resort). Re-running the script against the same file
- * updates existing documents in place rather than creating duplicates.
+ * with the SAME --source value updates existing documents in place rather
+ * than creating duplicates.
+ *
+ * Because `source` is part of that key, a DIFFERENT --source value (including
+ * omitting it, which stores the placeholder) is a different import identity:
+ * the same features will be inserted again as new documents instead of
+ * updating the existing ones. When re-importing data that is already stored,
+ * pass exactly the `source` string it was stored with.
  *
  * This script does NOT touch any other collection and does NOT depend on
  * APP_MODE — imported real road data is intentionally available in both
@@ -49,7 +67,9 @@ async function run() {
   const filePath = positional[0];
 
   if (!filePath) {
-    console.error('Usage: node scripts/importRoadNetwork.js <path-to-geojson> [--corridor=NAME] [--source=NAME]');
+    console.error('Usage: node scripts/importRoadNetwork.js <path-to-geojson> [--corridor=NAME] [--source=NAME] [--vintage=TEXT]');
+    console.error('  --source is part of the (source, sourceId) import identity: a different value re-inserts the same features.');
+    console.error('  --vintage is stored as-is (null if omitted); pass only a documented vintage. See DATA_PROVENANCE.md.');
     process.exit(1);
   }
 
