@@ -79,6 +79,22 @@ const IncidentSchema = new mongoose.Schema(
       generatedAt: { type: Date, default: null },
       source: { type: String, enum: ['REAL_AI', 'DEMO_FALLBACK', null], default: null },
     },
+    // Phase 11.2 (I5): processing-recovery state, separate from the operator
+    // workflow `status` above (which officers move with PATCH).
+    //   null        - legacy row written before this field existed. Treated as
+    //                 complete unless status is still REPORTED (never processed).
+    //   PENDING     - the raw report is stored but processing (AI -> road
+    //                 association -> accessibility/alert) is not finished and no
+    //                 request currently owns it. A replay RESUMES it.
+    //   IN_PROGRESS - one request owns it (processingClaimId) until
+    //                 processingClaimedAt + the lease in incidentController.js.
+    //   COMPLETE    - every step finished; a replay returns the record as-is.
+    // All three processing fields are internal: they are stored and used by the
+    // controller, but never serialized into API JSON (see the toJSON transform below).
+    // processingClaimId is additionally the fencing token for in-flight claims.
+    processingState: { type: String, enum: ['PENDING', 'IN_PROGRESS', 'COMPLETE', null], default: null },
+    processingClaimedAt: { type: Date, default: null },
+    processingClaimId: { type: String, default: null },
   },
   { timestamps: true }
 );
@@ -94,6 +110,11 @@ IncidentSchema.set('toJSON', {
   transform: (_doc, ret) => {
     ret.id = ret._id;
     delete ret._id;
+    // Internal processing-recovery fields: persisted in MongoDB and readable on the document
+    // (the controller relies on that), but never exposed through the API.
+    delete ret.processingState;
+    delete ret.processingClaimedAt;
+    delete ret.processingClaimId; // fencing token
   },
 });
 

@@ -58,6 +58,16 @@ Incident.create = async (data) => {
   };
   return doc.save();
 };
+// Phase 11.2: the controller checkpoints each processing step with a claim-guarded
+// updateOne({ _id, processingClaimId }, { $set }) instead of a final document save.
+Incident.updateOne = async (filter, update) => {
+  const snap = incidentStore.get(String(filter._id));
+  if (!snap || (filter.processingClaimId !== undefined && snap.processingClaimId !== filter.processingClaimId)) {
+    return { matchedCount: 0, modifiedCount: 0 };
+  }
+  Object.assign(snap, update.$set);
+  return { matchedCount: 1, modifiedCount: 1 };
+};
 Incident.find = (query) => ({
   sort: () => ({
     limit: async () =>
