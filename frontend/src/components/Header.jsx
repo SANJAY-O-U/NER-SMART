@@ -1,43 +1,57 @@
-/** Top command-center header with title, dashboard-active indicator, and refresh action. */
+import { RefreshIcon } from "./icons";
+
+/** Top command-center header: title, dashboard-active indicator, and the refresh / demo-reset actions. */
 export default function Header({ onRefresh, refreshing, onResetDemo, resetting, resetError }) {
   return (
-    <header className="bg-white text-slate-900 px-4 md:px-6 py-3.5 flex items-center justify-between border-b border-slate-200">
-      <div className="flex items-center gap-3">
-        <div className="h-9 w-9 rounded-lg bg-brand-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+    <header className="bg-white border-b border-slate-200 px-3 md:px-6 h-14 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-3 min-w-0">
+        {/* On md+ the logo lives in the sidebar; on mobile it is shown here. */}
+        <div className="md:hidden h-8 w-8 rounded-md bg-brand-500 flex items-center justify-center text-white font-bold text-xs shrink-0">
           NS
         </div>
-        <div>
-          <h1 className="text-lg md:text-xl font-bold tracking-wide leading-tight text-slate-900">NER SMART</h1>
-          <p className="text-[11px] md:text-xs text-slate-500 leading-tight">
-            North-East Essential Route Intelligence
+        <div className="min-w-0">
+          <h1 className="text-base md:text-lg font-bold leading-tight text-slate-900 truncate">
+            <span className="md:hidden">NER SMART</span>
+            <span className="hidden md:inline">Regional Command Center</span>
+          </h1>
+          <p className="hidden md:block text-xs text-slate-500 leading-tight truncate">
+            NER SMART · North-East Essential Route Intelligence
           </p>
         </div>
       </div>
-      <div className="flex items-center gap-3">
+
+      <div className="flex items-center gap-2 md:gap-3 shrink-0">
         {resetError && (
-          <span className="hidden md:inline text-[11px] text-red-600 max-w-[220px] truncate" title={resetError}>
+          <span
+            role="alert"
+            className="hidden lg:inline text-xs text-block-700 max-w-[260px] truncate"
+            title={resetError}
+          >
             {resetError}
           </span>
         )}
-        <span className="hidden sm:inline-flex items-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full font-semibold">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        <span className="hidden sm:inline-flex items-center gap-1.5 text-xs bg-ok-50 text-ok-700 border border-ok-200 px-2.5 py-1 rounded-md font-semibold">
+          <span className="h-1.5 w-1.5 rounded-full bg-ok-500" aria-hidden="true" />
           DASHBOARD ACTIVE
         </span>
         {onResetDemo && (
           <button
+            type="button"
             onClick={onResetDemo}
             disabled={resetting}
             title="Development/demo operation — wipes and reloads the known demo dataset (APP_MODE=demo only)"
-            className="text-xs font-semibold px-3 py-1.5 rounded-md bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 disabled:opacity-50 transition"
+            className="text-xs font-semibold px-3 py-1.5 rounded-md bg-white text-block-700 border border-block-200 hover:bg-block-50 disabled:opacity-50 transition"
           >
             {resetting ? "Resetting…" : "RESET DEMO"}
           </button>
         )}
         <button
+          type="button"
           onClick={onRefresh}
           disabled={refreshing}
-          className="text-xs font-semibold px-3 py-1.5 rounded-md bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-50 transition"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition"
         >
+          <RefreshIcon className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
           {refreshing ? "Refreshing…" : "Refresh"}
         </button>
       </div>

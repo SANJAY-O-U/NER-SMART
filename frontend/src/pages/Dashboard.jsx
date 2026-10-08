@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import Header from "../components/Header";
+import AppShell from "../components/AppShell";
 import KPISection from "../components/KPISection";
 import Card from "../components/Card";
 import ShipmentTable from "../components/ShipmentTable";
@@ -296,44 +296,52 @@ export default function Dashboard() {
     }
   };
 
+  // Presentation only: the frame (sidebar + header) is shared by the loading, error and loaded
+  // states. Every prop below is the same handler/flag the Header received before.
+  const shellProps = {
+    onRefresh: () => loadAll({ silent: true }),
+    refreshing,
+    onResetDemo: writesEnabled ? handleResetDemo : undefined,
+    resetting,
+    resetError,
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50">
-        <Header onRefresh={() => loadAll({ silent: true })} refreshing={refreshing} onResetDemo={writesEnabled ? handleResetDemo : undefined} resetting={resetting} resetError={resetError} />
+      <AppShell withNav={false} {...shellProps}>
         <LoadingSpinner label="Loading command center…" />
-      </div>
+      </AppShell>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-50">
-        <Header onRefresh={() => loadAll({ silent: true })} refreshing={refreshing} onResetDemo={writesEnabled ? handleResetDemo : undefined} resetting={resetting} resetError={resetError} />
+      <AppShell withNav={false} {...shellProps}>
         <ErrorMessage message={error} onRetry={() => loadAll()} />
-      </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Header onRefresh={() => loadAll({ silent: true })} refreshing={refreshing} onResetDemo={writesEnabled ? handleResetDemo : undefined} resetting={resetting} resetError={resetError} />
-
-      <main className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-[1600px] mx-auto">
+    <AppShell {...shellProps}>
+      <main className="p-3 md:p-5 space-y-4 md:space-y-5 max-w-[1600px] mx-auto">
         {/* OPERATIONAL OVERVIEW — compact KPI row, all values from real fetched state */}
-        <KPISection
-          shipments={shipments}
-          roads={roads}
-          vehicles={vehicles}
-          incidents={incidents}
-          alerts={alerts}
-          dataSources={dataSources}
-        />
+        <div id="overview" className="scroll-mt-28">
+          <KPISection
+            shipments={shipments}
+            roads={roads}
+            vehicles={vehicles}
+            incidents={incidents}
+            alerts={alerts}
+            dataSources={dataSources}
+          />
+        </div>
 
         {/* MAIN WORKSPACE — map is the visual anchor; alerts are the most
             visually prominent dynamic panel alongside it. */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
           <div className="lg:col-span-2 space-y-4 md:space-y-6">
-            <Card title="NER Map" subtitle="Real road geometry · incidents · facilities" className="h-[440px] p-0 overflow-hidden">
+            <Card id="map" title="NER Map" subtitle="Real road geometry · incidents · facilities" className="h-[440px] p-0 overflow-hidden">
               <MapView
                 roads={roads}
                 vehicles={vehicles}
@@ -345,7 +353,7 @@ export default function Dashboard() {
               />
             </Card>
 
-            <Card title="Shipments">
+            <Card id="shipments" title="Shipments">
               <ShipmentTable
                 shipments={shipments}
                 vehicles={vehicles}
@@ -355,7 +363,7 @@ export default function Dashboard() {
             </Card>
           </div>
 
-          <Card title="Operational Alerts" subtitle="Live from the backend alert pipeline">
+          <Card id="alerts" title="Operational Alerts" subtitle="Live from the backend alert pipeline">
             <AlertPanel alerts={alerts} roads={roads} />
           </Card>
         </div>
@@ -363,7 +371,7 @@ export default function Dashboard() {
         {/* SECOND ROW — road-level accessibility/risk alongside the
             incident-level operational impact trace. */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-          <Card title="Road Intelligence" subtitle="Accessibility · risk · evidence · confidence">
+          <Card id="road-intelligence" title="Road Intelligence" subtitle="Accessibility · risk · evidence · confidence">
             <RoadRiskCard
               roads={roads}
               selectedRoadId={selectedRoadId}
@@ -378,7 +386,7 @@ export default function Dashboard() {
             />
           </Card>
 
-          <Card title="Incident Reports" subtitle="Operational impact per incident" className="max-h-[520px] overflow-hidden">
+          <Card id="incidents" title="Incident Reports" subtitle="Operational impact per incident" className="max-h-[520px] overflow-hidden">
             <IncidentPanel
               key={incidentPanelKey}
               incidents={incidents}
@@ -390,7 +398,7 @@ export default function Dashboard() {
         </div>
 
         {/* ROUTE RECOMMENDATIONS */}
-        <Card title="Route Recommendations" subtitle="Modeled risk heuristic — not a live-traffic ETA">
+        <Card id="routes" title="Route Recommendations" subtitle="Modeled risk heuristic — not a live-traffic ETA">
           <RouteRecommendationCard
             onAnalyze={handleAnalyzeRoute}
             analyzing={analyzing}
@@ -401,10 +409,10 @@ export default function Dashboard() {
         </Card>
 
         {/* DATA SOURCES / SYSTEM HEALTH */}
-        <Card title="Data Sources · System Health" subtitle="Status reported directly by the backend — never inferred here">
+        <Card id="data-sources" title="Data Sources · System Health" subtitle="Status reported directly by the backend — never inferred here">
           <DataSourceStatus sources={dataSources} />
         </Card>
       </main>
-    </div>
+    </AppShell>
   );
 }
