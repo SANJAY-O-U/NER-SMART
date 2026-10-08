@@ -83,6 +83,18 @@ export const DatabaseIcon = (p) => (
     <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
   </Icon>
 );
+export const BanIcon = (p) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="10" />
+    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+  </Icon>
+);
+export const CheckCircleIcon = (p) => (
+  <Icon {...p}>
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <polyline points="22 4 12 14.01 9 11.01" />
+  </Icon>
+);
 export const RefreshIcon = (p) => (
   <Icon {...p}>
     <polyline points="23 4 23 10 17 10" />

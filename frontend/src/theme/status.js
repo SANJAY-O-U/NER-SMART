@@ -70,7 +70,20 @@ const TONE = {
   },
 };
 
-export const tone = (name) => TONE[name] || TONE.neutral;
+// Left accent bar used by list rows (alerts, incidents). Written out in full for Tailwind's scanner.
+const BAR = {
+  ok: "border-l-ok-500",
+  warn: "border-l-warn-500",
+  disrupt: "border-l-disrupt-500",
+  block: "border-l-block-600",
+  neutral: "border-l-neutral-300",
+  info: "border-l-primary-500",
+};
+
+export const tone = (name) => {
+  const key = TONE[name] ? name : "neutral";
+  return { ...TONE[key], bar: BAR[key] };
+};
 
 /* ---------------- Accessibility (engine) state ---------------- */
 

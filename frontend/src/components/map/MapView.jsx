@@ -91,11 +91,12 @@ export default function MapView({
   zoom = DEFAULT_ZOOM,
   heightClassName = "h-[600px]",
   routeGeometry = null, // Phase 4C: optional real route {type:'LineString', coordinates:[[lng,lat],...]}
+  bare = false, // presentation only: drop the frame when the parent panel already provides one
 }) {
   return (
     // `isolate` gives the map its own stacking context so Leaflet's high z-index panes and
     // controls can never paint over the sticky header.
-    <div className={`w-full ${heightClassName} rounded-lg overflow-hidden border border-slate-200 relative isolate`}>
+    <div className={`w-full ${heightClassName} overflow-hidden relative isolate ${bare ? "" : "rounded-lg border border-slate-200"}`}>
       {/* Prototype disclaimer — required per project scope */}
       <div className="absolute z-[1000] top-2 left-1/2 -translate-x-1/2 bg-white/90 text-slate-600 text-xs px-3 py-1 rounded-full border border-slate-200 shadow-sm pointer-events-none">
         Prototype demo data — not official government GIS data

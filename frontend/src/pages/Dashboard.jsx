@@ -10,6 +10,7 @@ import IncidentPanel from "../components/IncidentPanel";
 import DataSourceStatus from "../components/DataSourceStatus";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorMessage from "../components/ErrorMessage";
+import ActiveIncidents from "../components/ActiveIncidents";
 // Supplied by Member 2 — Map/GIS developer. Do not implement this here.
 import MapView from "../components/map/MapView";
 import {
@@ -32,6 +33,18 @@ import {
 // Poll interval for picking up new driver-reported incidents without
 // building a full WebSocket layer (P0 scope — see mission doc "REALTIME").
 const INCIDENT_POLL_MS = 6000;
+
+// Same definition as the "Active Incidents" KPI (KPISection.jsx) and the ActiveIncidents list.
+const countActiveIncidents = (list) =>
+  (Array.isArray(list) ? list : []).filter((i) => (i.status || "").toUpperCase() !== "RESOLVED").length;
+
+function CountPill({ value }) {
+  return (
+    <span className="text-2xs font-semibold px-2 py-0.5 rounded-md bg-neutral-100 text-neutral-700 border border-neutral-200">
+      {value}
+    </span>
+  );
+}
 
 export default function Dashboard() {
   const [shipments, setShipments] = useState([]);
@@ -296,6 +309,8 @@ export default function Dashboard() {
     }
   };
 
+  const activeIncidentCount = countActiveIncidents(incidents);
+
   // Presentation only: the frame (sidebar + header) is shared by the loading, error and loaded
   // states. Every prop below is the same handler/flag the Header received before.
   const shellProps = {
@@ -337,40 +352,63 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* MAIN WORKSPACE — map is the visual anchor; alerts are the most
-            visually prominent dynamic panel alongside it. */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-          <div className="lg:col-span-2 space-y-4 md:space-y-6">
-            <Card id="map" title="NER Map" subtitle="Real road geometry · incidents · facilities" className="h-[440px] p-0 overflow-hidden">
-              <MapView
-                roads={roads}
-                vehicles={vehicles}
-                incidents={incidents}
-                facilities={[]}
-                onRoadClick={(road) => console.log(road)}
-                heightClassName="h-full"
-                routeGeometry={realRouteGeometry}
-              />
+        {/* MAIN WORKSPACE — the live map is the primary operational surface; the alert feed and the
+            active-incident list sit beside it. Same data and components as before, re-arranged. */}
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-4 xl:h-[640px]">
+          <Card
+            id="map"
+            title="NER Map"
+            subtitle="Real road geometry · incidents · facilities"
+            actions={
+              <span className="text-xs text-slate-500 whitespace-nowrap">
+                {roads.length} roads · {incidents.length} incidents · {vehicles.length} vehicles
+              </span>
+            }
+            flush
+            className="h-[460px] md:h-[540px] xl:h-full"
+          >
+            <MapView
+              roads={roads}
+              vehicles={vehicles}
+              incidents={incidents}
+              facilities={[]}
+              onRoadClick={(road) => console.log(road)}
+              heightClassName="h-full"
+              routeGeometry={realRouteGeometry}
+              bare
+            />
+          </Card>
+
+          <div className="flex flex-col gap-4 min-h-0 xl:h-full">
+            <Card
+              id="alerts"
+              title="Operational Alerts"
+              subtitle="Live from the backend alert pipeline · most severe first"
+              actions={<CountPill value={alerts.length} />}
+              className="flex flex-col xl:flex-1 xl:min-h-0"
+            >
+              <div className="overflow-y-auto max-h-80 xl:max-h-none xl:flex-1 xl:min-h-0">
+                <AlertPanel alerts={alerts} roads={roads} />
+              </div>
             </Card>
 
-            <Card id="shipments" title="Shipments">
-              <ShipmentTable
-                shipments={shipments}
-                vehicles={vehicles}
-                selectedId={selectedShipmentId}
-                onSelectShipment={(s) => setSelectedShipmentId(s.id)}
-              />
+            <Card
+              id="active-incidents"
+              title="Active Incidents"
+              subtitle="Not yet resolved · most severe first"
+              actions={<CountPill value={activeIncidentCount} />}
+              className="flex flex-col xl:flex-1 xl:min-h-0"
+            >
+              <div className="overflow-y-auto max-h-80 xl:max-h-none xl:flex-1 xl:min-h-0">
+                <ActiveIncidents incidents={incidents} />
+              </div>
             </Card>
           </div>
-
-          <Card id="alerts" title="Operational Alerts" subtitle="Live from the backend alert pipeline">
-            <AlertPanel alerts={alerts} roads={roads} />
-          </Card>
         </div>
 
         {/* SECOND ROW — road-level accessibility/risk alongside the
             incident-level operational impact trace. */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card id="road-intelligence" title="Road Intelligence" subtitle="Accessibility · risk · evidence · confidence">
             <RoadRiskCard
               roads={roads}
@@ -405,6 +443,16 @@ export default function Dashboard() {
             result={routeResult}
             error={routeError}
             onRealRoute={setRealRouteGeometry}
+          />
+        </Card>
+
+        {/* SHIPMENTS */}
+        <Card id="shipments" title="Shipments">
+          <ShipmentTable
+            shipments={shipments}
+            vehicles={vehicles}
+            selectedId={selectedShipmentId}
+            onSelectShipment={(s) => setSelectedShipmentId(s.id)}
           />
         </Card>
 

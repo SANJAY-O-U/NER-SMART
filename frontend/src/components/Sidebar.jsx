@@ -33,11 +33,13 @@ export function scrollToSection(id) {
 }
 
 /** Tracks which section is currently under the sticky header (scroll-spy). Purely visual. */
-export function useActiveSection() {
+export function useActiveSection(enabled = true) {
   const [active, setActive] = useState(NAV_SECTIONS[0].id);
 
+  // `enabled` is false while the loading / error screen is showing (no sections exist yet); the
+  // effect re-runs when the sections appear so the observer attaches to real elements.
   useEffect(() => {
-    if (typeof IntersectionObserver === "undefined") return undefined;
+    if (!enabled || typeof IntersectionObserver === "undefined") return undefined;
     const visible = new Map();
     const observer = new IntersectionObserver(
       (entries) => {
@@ -53,13 +55,13 @@ export function useActiveSection() {
       if (el) observer.observe(el);
     });
     return () => observer.disconnect();
-  }, []);
+  }, [enabled]);
 
   return [active, setActive];
 }
 
 /** Desktop / laptop / tablet rail: icons only from md, icons + labels from xl. */
-export function Sidebar({ active, onNavigate }) {
+export function Sidebar({ active, onNavigate, navEnabled = true }) {
   return (
     <aside className="hidden md:flex md:w-14 xl:w-56 shrink-0 sticky top-0 h-screen flex-col bg-slate-900 text-slate-300">
       <div className="h-14 flex items-center justify-center xl:justify-start xl:px-4 gap-2.5 border-b border-slate-800 shrink-0">
@@ -70,8 +72,9 @@ export function Sidebar({ active, onNavigate }) {
       </div>
 
       <nav aria-label="Dashboard sections" className="flex-1 overflow-y-auto py-3">
+        {/* While loading / on a load error there are no sections to scroll to: show the brand only. */}
         <ul className="space-y-0.5 px-2">
-          {NAV_SECTIONS.map(({ id, label, Icon }) => {
+          {(navEnabled ? NAV_SECTIONS : []).map(({ id, label, Icon }) => {
             const isActive = active === id;
             return (
               <li key={id}>

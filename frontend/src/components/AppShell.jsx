@@ -8,7 +8,7 @@ import { Sidebar, MobileNav, useActiveSection, scrollToSection } from "./Sidebar
  * `withNav` is false for the loading / error states, where no dashboard sections exist to scroll to.
  */
 export default function AppShell({ children, withNav = true, ...headerProps }) {
-  const [active, setActive] = useActiveSection();
+  const [active, setActive] = useActiveSection(withNav);
 
   const navigate = (id) => {
     setActive(id);
@@ -17,7 +17,7 @@ export default function AppShell({ children, withNav = true, ...headerProps }) {
 
   return (
     <div className="min-h-screen bg-neutral-100 text-slate-900 md:flex">
-      {withNav && <Sidebar active={active} onNavigate={navigate} />}
+      <Sidebar active={active} onNavigate={navigate} navEnabled={withNav} />
       <div className="flex-1 min-w-0">
         <div className="sticky top-0 z-[1200]">
           <Header {...headerProps} />
