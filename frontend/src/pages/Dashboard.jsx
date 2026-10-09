@@ -372,7 +372,8 @@ export default function Dashboard() {
               vehicles={vehicles}
               incidents={incidents}
               facilities={[]}
-              onRoadClick={(road) => console.log(road)}
+              onRoadClick={(road) => setSelectedRoadId(road.id)}
+              selectedRoadId={selectedRoadId}
               heightClassName="h-full"
               routeGeometry={realRouteGeometry}
               bare
