@@ -12,9 +12,9 @@ const ROUTE_LABELS = {
 };
 
 const INPUT =
-  "w-full text-sm border border-slate-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500";
+  "w-full text-sm border border-slate-500 rounded-md px-2 py-1.5 bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500";
 const PRIMARY_BTN =
-  "w-full text-sm font-semibold px-3 py-2 rounded-md bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1";
+  "w-full text-sm font-semibold px-3 py-2 rounded-md bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1";
 
 function LabeledField({ id, label, children }) {
   return (
@@ -30,7 +30,7 @@ function LabeledField({ id, label, children }) {
 function Stat({ label, value }) {
   return (
     <div className="min-w-0">
-      <p className="text-2xs uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="text-2xs uppercase tracking-wide text-slate-600">{label}</p>
       <p className="text-sm font-semibold text-slate-900 break-words">{value}</p>
     </div>
   );
@@ -64,7 +64,7 @@ function RealRouteCard({ routeKey, route }) {
       {route.reasons?.length > 0 && (
         <ul className="text-slate-600 space-y-0.5 pt-2 border-t border-slate-200">
           {route.reasons.slice(0, 4).map((r, i) => (
-            <li key={i}>⚠ {r}</li>
+            <li key={i}><span aria-hidden="true">⚠</span> {r}</li>
           ))}
         </ul>
       )}
@@ -126,8 +126,9 @@ export default function RouteRecommendationCard({ onAnalyze, analyzing, result, 
 
   return (
     <div className="space-y-3">
-      <div role="group" aria-label="Route mode" className="flex rounded-md overflow-hidden border border-slate-300 text-xs">
+      <div role="group" aria-label="Route mode" className="flex rounded-md overflow-hidden border border-slate-500 text-xs">
         <button
+          type="button"
           onClick={() => setMode("demo")}
           aria-pressed={mode === "demo"}
           className={`flex-1 py-2 font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${mode === "demo" ? "bg-primary-600 text-white" : "bg-white text-slate-700 hover:bg-slate-50"}`}
@@ -135,9 +136,10 @@ export default function RouteRecommendationCard({ onAnalyze, analyzing, result, 
           Demo
         </button>
         <button
+          type="button"
           onClick={() => setMode("real")}
           aria-pressed={mode === "real"}
-          className={`flex-1 py-2 font-semibold border-l border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${mode === "real" ? "bg-primary-600 text-white" : "bg-white text-slate-700 hover:bg-slate-50"}`}
+          className={`flex-1 py-2 font-semibold border-l border-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${mode === "real" ? "bg-primary-600 text-white" : "bg-white text-slate-700 hover:bg-slate-50"}`}
         >
           Real Road Network
         </button>
@@ -170,6 +172,7 @@ export default function RouteRecommendationCard({ onAnalyze, analyzing, result, 
           </LabeledField>
 
           <button
+            type="button"
             onClick={() => onAnalyze(form)}
             disabled={analyzing || !form.origin || !form.destination}
             className={PRIMARY_BTN}
@@ -179,11 +182,12 @@ export default function RouteRecommendationCard({ onAnalyze, analyzing, result, 
 
           {error && <p role="alert" className="text-xs font-medium text-block-700">{error}</p>}
 
+          <div aria-live="polite">
           {result && (
             <div className="text-xs bg-white border border-slate-200 rounded-md p-3 space-y-2">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div>
-                  <p className="text-2xs uppercase tracking-wide text-slate-500">Recommended route</p>
+                  <p className="text-2xs uppercase tracking-wide text-slate-600">Recommended route</p>
                   <p className="text-sm font-semibold text-slate-900">{result.recommendedRoute}</p>
                 </div>
                 <RiskBadge score={result.risk} />
@@ -194,9 +198,10 @@ export default function RouteRecommendationCard({ onAnalyze, analyzing, result, 
                 <Stat label="Delay" value={result.delay} />
               </div>
               <p className="text-slate-600 italic pt-2 border-t border-slate-200">{result.reason}</p>
-              <p className="text-2xs text-slate-500">{MODEL_NOTE}</p>
+              <p className="text-2xs text-slate-600">{MODEL_NOTE}</p>
             </div>
           )}
+          </div>
         </>
       )}
 
@@ -209,16 +214,16 @@ export default function RouteRecommendationCard({ onAnalyze, analyzing, result, 
           </p>
           <div className="grid grid-cols-2 gap-2">
             <LabeledField id="real-origin-lat" label="Origin lat">
-              <input id="real-origin-lat" className={INPUT} placeholder="Origin lat" value={realForm.originLat} onChange={updateReal("originLat")} />
+              <input id="real-origin-lat" className={INPUT} placeholder="Origin lat" inputMode="decimal" value={realForm.originLat} onChange={updateReal("originLat")} />
             </LabeledField>
             <LabeledField id="real-origin-lng" label="Origin lng">
-              <input id="real-origin-lng" className={INPUT} placeholder="Origin lng" value={realForm.originLng} onChange={updateReal("originLng")} />
+              <input id="real-origin-lng" className={INPUT} placeholder="Origin lng" inputMode="decimal" value={realForm.originLng} onChange={updateReal("originLng")} />
             </LabeledField>
             <LabeledField id="real-dest-lat" label="Dest lat">
-              <input id="real-dest-lat" className={INPUT} placeholder="Dest lat" value={realForm.destLat} onChange={updateReal("destLat")} />
+              <input id="real-dest-lat" className={INPUT} placeholder="Dest lat" inputMode="decimal" value={realForm.destLat} onChange={updateReal("destLat")} />
             </LabeledField>
             <LabeledField id="real-dest-lng" label="Dest lng">
-              <input id="real-dest-lng" className={INPUT} placeholder="Dest lng" value={realForm.destLng} onChange={updateReal("destLng")} />
+              <input id="real-dest-lng" className={INPUT} placeholder="Dest lng" inputMode="decimal" value={realForm.destLng} onChange={updateReal("destLng")} />
             </LabeledField>
           </div>
           <LabeledField id="real-cargo" label="Cargo priority">
@@ -232,6 +237,7 @@ export default function RouteRecommendationCard({ onAnalyze, analyzing, result, 
           </LabeledField>
 
           <button
+            type="button"
             onClick={analyzeReal}
             disabled={realAnalyzing}
             className={PRIMARY_BTN}
@@ -241,6 +247,7 @@ export default function RouteRecommendationCard({ onAnalyze, analyzing, result, 
 
           {realError && <p role="alert" className="text-xs font-medium text-block-700">Backend error: {realError}</p>}
 
+          <div aria-live="polite" className="space-y-2">
           {realResult && !realResult.matched && (
             <div className="text-xs bg-warn-50 border border-warn-200 rounded-md p-2.5 text-warn-700">
               {realResult.message}
@@ -255,9 +262,10 @@ export default function RouteRecommendationCard({ onAnalyze, analyzing, result, 
               {realResult.notes?.safestEqualsBalanced && (
                 <p className="text-xs text-slate-600 italic">Safest and Balanced routes are identical.</p>
               )}
-              <p className="text-2xs text-slate-500">{MODEL_NOTE}</p>
+              <p className="text-2xs text-slate-600">{MODEL_NOTE}</p>
             </div>
           )}
+          </div>
         </>
       )}
     </div>

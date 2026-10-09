@@ -324,7 +324,9 @@ export default function Dashboard() {
   if (loading) {
     return (
       <AppShell withNav={false} {...shellProps}>
-        <LoadingSpinner label="Loading command center…" />
+        <main id="main-content" tabIndex={-1}>
+          <LoadingSpinner label="Loading command center…" />
+        </main>
       </AppShell>
     );
   }
@@ -332,16 +334,19 @@ export default function Dashboard() {
   if (error) {
     return (
       <AppShell withNav={false} {...shellProps}>
-        <ErrorMessage message={error} onRetry={() => loadAll()} />
+        <main id="main-content" tabIndex={-1}>
+          <ErrorMessage message={error} onRetry={() => loadAll()} />
+        </main>
       </AppShell>
     );
   }
 
   return (
     <AppShell {...shellProps}>
-      <main className="p-3 md:p-5 space-y-4 md:space-y-5 max-w-[1600px] mx-auto">
+      <main id="main-content" tabIndex={-1} className="p-3 md:p-5 space-y-4 md:space-y-5 max-w-[1600px] mx-auto">
         {/* OPERATIONAL OVERVIEW — compact KPI row, all values from real fetched state */}
-        <div id="overview" className="scroll-mt-28">
+        <div id="overview" tabIndex={-1} className="scroll-mt-28">
+          <h2 className="sr-only">Operational overview</h2>
           <KPISection
             shipments={shipments}
             roads={roads}
@@ -388,7 +393,12 @@ export default function Dashboard() {
               actions={<CountPill value={alerts.length} />}
               className="flex flex-col xl:flex-1 xl:min-h-0"
             >
-              <div className="overflow-y-auto max-h-80 xl:max-h-none xl:flex-1 xl:min-h-0">
+              <div
+                tabIndex={0}
+                role="region"
+                aria-label="Operational alerts list, scrollable"
+                className="overflow-y-auto max-h-80 xl:max-h-none xl:flex-1 xl:min-h-0"
+              >
                 <AlertPanel alerts={alerts} roads={roads} />
               </div>
             </Card>

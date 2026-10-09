@@ -22,7 +22,7 @@ export function CriticalKPI({ label, value, hint, tone: toneName = "neutral", Ic
       </div>
       <div>
         <p className={`text-3xl font-bold leading-none ${active ? t.text : "text-slate-800"}`}>{value}</p>
-        {hint && <p className="text-2xs text-slate-500 mt-1.5 leading-tight">{hint}</p>}
+        {hint && <p className="text-2xs text-slate-600 mt-1.5 leading-tight">{hint}</p>}
       </div>
     </div>
   );

@@ -116,9 +116,22 @@ export default function MapView({
   return (
     // `isolate` gives the map its own stacking context so Leaflet's high z-index panes and
     // controls can never paint over the sticky header.
-    <div className={`w-full ${heightClassName} overflow-hidden relative isolate ${bare ? "" : "rounded-lg border border-slate-200"}`}>
-      {/* Prototype disclaimer — required per project scope */}
-      <div className="absolute z-[1000] top-2 left-1/2 -translate-x-1/2 bg-white/90 text-slate-600 text-xs px-3 py-1 rounded-full border border-slate-200 shadow-sm pointer-events-none">
+    <div
+      role="region"
+      aria-label="Map of roads, incidents and vehicles"
+      className={`w-full ${heightClassName} overflow-hidden relative isolate ${bare ? "" : "rounded-lg border border-slate-200"}`}
+    >
+      {/* Keyboard alternative to the map: road lines cannot take keyboard focus, so this jumps to the
+          Road Intelligence road selector, which selects a road through the same state as a map click. */}
+      <a
+        href="#road-select"
+        className="sr-only focus:not-sr-only absolute z-[1100] top-2 left-2 rounded-md border border-primary-600 bg-white px-3 py-1.5 text-xs font-semibold text-primary-700 shadow-raised"
+      >
+        Skip map: choose a road in Road Intelligence
+      </a>
+      {/* Prototype disclaimer — required per project scope. Wraps on narrow screens and keeps clear of
+          the zoom control (left) instead of overlapping it. */}
+      <div className="absolute z-[1000] top-2 left-12 right-2 sm:right-12 mx-auto w-fit max-w-[calc(100%-3.5rem)] sm:max-w-[calc(100%-6rem)] bg-white/90 text-slate-600 text-xs leading-snug text-center px-3 py-1 rounded-2xl border border-slate-200 shadow-sm pointer-events-none">
         Prototype demo data — not official government GIS data
       </div>
 

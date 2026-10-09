@@ -55,7 +55,7 @@ const TONE = {
   neutral: {
     badge: "bg-neutral-100 text-neutral-600 border-neutral-300",
     panel: "bg-neutral-50 border-neutral-200",
-    text: "text-neutral-500",
+    text: "text-neutral-600",
     solid: "bg-neutral-500 text-white",
     dot: "bg-neutral-400",
     hex: "#94a3b8",

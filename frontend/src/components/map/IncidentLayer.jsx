@@ -63,6 +63,9 @@ export default function IncidentLayer({ incidents = [] }) {
           key={incident.id}
           position={[incident.lat, incident.lng]}
           icon={icons(incident.severity)}
+          // Accessible name for the keyboard-focusable marker (also the hover tooltip); severity is
+          // stated in text because the icon itself only encodes it by color.
+          title={`Incident: ${incident.type || "unspecified"}${incident.severity !== undefined && incident.severity !== null ? `, severity ${incident.severity}` : ""}`}
         >
           <Popup>
             <MapPopup type="incident" data={incident} />

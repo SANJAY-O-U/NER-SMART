@@ -81,7 +81,7 @@ export default function AlertPanel({ alerts, roads = [] }) {
                 <time
                   dateTime={new Date(when).toString() === "Invalid Date" ? undefined : new Date(when).toISOString()}
                   title={new Date(when).toLocaleString()}
-                  className="text-xs text-slate-500 whitespace-nowrap"
+                  className="text-xs text-slate-600 whitespace-nowrap"
                 >
                   {timeAgo(when)}
                 </time>

@@ -56,6 +56,7 @@ export default function FacilityLayer({ facilities = [] }) {
           key={facility.id}
           position={[facility.lat, facility.lng]}
           icon={icons(facility.type)}
+          title={`${facility.type ? `${facility.type}: ` : ""}${facility.name || "Facility"}`}
         >
           <Popup>
             <MapPopup type="facility" data={facility} />

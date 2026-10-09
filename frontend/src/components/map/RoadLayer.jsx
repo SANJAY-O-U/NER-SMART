@@ -57,6 +57,33 @@ function geometryToPaths(geometry) {
   return [];
 }
 
+/**
+ * Keyboard / assistive-technology support for a road layer (Leaflet draws it as a bare SVG element).
+ * Leaflet already opens the popup on Enter (its own `keypress` handler) but never fires `click`, so a
+ * keyboard user could open a popup without selecting the road. Enter now calls the same `onRoadClick`
+ * a mouse click does; nothing else about selection changes. The element also gets a role and a name.
+ */
+function a11yProps(road, statusInfo, onRoadClick) {
+  const label = `${road.name || "Unnamed road"}, status ${statusInfo.label}.${onRoadClick ? " Press Enter to select this road." : ""}`;
+  const apply = (layer) => {
+    const el = layer && typeof layer.getElement === "function" ? layer.getElement() : null;
+    if (el) {
+      el.setAttribute("role", "button");
+      el.setAttribute("aria-label", label);
+    }
+  };
+  return {
+    apply,
+    handlers: {
+      keypress: (e) => {
+        const key = e.originalEvent;
+        if (onRoadClick && key && (key.key === "Enter" || key.keyCode === 13)) onRoadClick(road);
+      },
+      add: (e) => apply(e.target),
+    },
+  };
+}
+
 export default function RoadLayer({ roads = [], onRoadClick, selectedRoadId }) {
   // The selected road is drawn last so it sits above its neighbours.
   const ordered = selectedRoadId
@@ -87,6 +114,7 @@ export default function RoadLayer({ roads = [], onRoadClick, selectedRoadId }) {
         );
 
         const paths = geometryToPaths(road.geometry);
+        const a11y = a11yProps(road, statusInfo, onRoadClick);
 
         if (paths.length > 0) {
           return (
@@ -111,8 +139,10 @@ export default function RoadLayer({ roads = [], onRoadClick, selectedRoadId }) {
                     opacity: isSelected ? 1 : 0.85,
                     dashArray: isUnknown ? "6 4" : undefined,
                   }}
+                  ref={a11y.apply}
                   eventHandlers={{
                     click: () => onRoadClick && onRoadClick(road),
+                    ...a11y.handlers,
                   }}
                 >
                   {tooltip}
@@ -147,8 +177,10 @@ export default function RoadLayer({ roads = [], onRoadClick, selectedRoadId }) {
                 weight: isSelected ? 4 : isBlocked ? 3 : 2,
                 dashArray: isUnknown ? "3 3" : undefined,
               }}
+              ref={a11y.apply}
               eventHandlers={{
                 click: () => onRoadClick && onRoadClick(road),
+                ...a11y.handlers,
               }}
             >
               {tooltip}

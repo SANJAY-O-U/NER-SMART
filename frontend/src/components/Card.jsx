@@ -8,6 +8,7 @@ export default function Card({ id, title, children, className = "", subtitle, ac
   return (
     <section
       id={id}
+      tabIndex={id ? -1 : undefined}
       className={`scroll-mt-28 bg-white border border-slate-200 rounded-lg shadow-panel ${
         flush ? "flex flex-col overflow-hidden" : "p-4"
       } ${className}`}

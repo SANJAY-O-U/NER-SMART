@@ -47,7 +47,7 @@ export default {
       },
       fontSize: {
         // Compact operational label size used across dense panels.
-        "2xs": ["0.6875rem", { lineHeight: "1rem" }],
+        "2xs": ["0.75rem", { lineHeight: "1rem" }],
       },
       boxShadow: {
         panel: "0 1px 2px 0 rgb(15 23 42 / 0.05)",

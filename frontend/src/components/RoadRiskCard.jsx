@@ -53,7 +53,7 @@ export default function RoadRiskCard({
       </label>
       <select
         id="road-select"
-        className="w-full text-sm border border-slate-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+        className="w-full scroll-mt-28 text-sm border border-slate-500 rounded-md px-2 py-1.5 bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
         value={selectedRoad?.id || ""}
         onChange={(e) => onSelectRoad(e.target.value)}
       >
@@ -110,15 +110,16 @@ export default function RoadRiskCard({
       {onSimulate && (
         <div className="rounded-md border border-dashed border-amber-300 bg-amber-50/60 p-2.5 space-y-1.5">
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded bg-amber-200 text-amber-800">
+            <span className="text-2xs font-bold tracking-wide px-1.5 py-0.5 rounded bg-amber-200 text-amber-800">
               WHAT-IF / DEMO
             </span>
-            <span className="text-[10.5px] text-slate-500">Does not reflect a real event</span>
+            <span className="text-2xs text-slate-600">Does not reflect a real event</span>
           </div>
           <button
+            type="button"
             onClick={() => onSimulate(selectedRoad?.id)}
             disabled={!selectedRoad || simulating}
-            className="w-full text-sm font-semibold px-3 py-2 rounded-md border border-amber-400 bg-white text-amber-800 hover:bg-amber-100 disabled:opacity-50 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+            className="w-full text-sm font-semibold px-3 py-2 rounded-md border border-amber-400 bg-white text-amber-800 hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
           >
             {simulating ? "Simulating…" : "RUN LANDSLIDE SIMULATION"}
           </button>
@@ -152,7 +153,8 @@ export default function RoadRiskCard({
             <ul className="space-y-0.5 pt-1 border-t border-black/10">
               {accessibility.factors.slice(0, 4).map((f, i) => (
                 <li key={i} className="flex items-center gap-1.5">
-                  <span>{f.contribution !== null && f.contribution < 0 ? "⚠" : "✓"}</span>
+                  <span aria-hidden="true">{f.contribution !== null && f.contribution < 0 ? "⚠" : "✓"}</span>
+                  <span className="sr-only">{f.contribution !== null && f.contribution < 0 ? "Negative factor:" : "Supporting factor:"}</span>
                   <span className="text-slate-600">
                     {f.name?.replace(/_/g, " ")} — {f.source}
                     {f.contribution !== null ? ` (${f.contribution})` : ""}

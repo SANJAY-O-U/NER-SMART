@@ -50,6 +50,7 @@ export default function VehicleLayer({ vehicles = [] }) {
           key={vehicle.id}
           position={[vehicle.lat, vehicle.lng]}
           icon={icons(vehicle.status)}
+          title={`Vehicle ${vehicle.id}${vehicle.status ? `, ${vehicle.status}` : ""}`}
         >
           <Popup>
             <MapPopup type="vehicle" data={vehicle} />

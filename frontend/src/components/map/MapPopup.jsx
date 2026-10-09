@@ -64,7 +64,7 @@ export default function MapPopup({ type, data, linkToIntelligence = false }) {
           <>
             <Row label="Source" value={data.source.split(' — ')[0].split(' (')[0]} />
             {data.physicalStatus === "UNKNOWN" && (
-              <p className="text-[11px] text-slate-500 mt-1 italic">
+              <p className="text-2xs text-slate-600 mt-1 italic">
                 Closure status not verified — imported geometry only.
               </p>
             )}

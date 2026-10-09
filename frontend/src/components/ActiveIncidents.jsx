@@ -36,22 +36,23 @@ export default function ActiveIncidents({ incidents }) {
         return (
           <li key={incident.id} className={`rounded-md border border-slate-200 border-l-4 bg-white p-3 ${sev.bar}`}>
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2 min-w-0 flex-wrap">
                 <StatusBadge status={incident.severity} />
-                <span className="text-sm font-semibold text-slate-800 truncate">{incident.type}</span>
+                <span className="text-sm font-semibold text-slate-800 break-words">{incident.type}</span>
               </div>
-              <span className="text-xs text-slate-500 whitespace-nowrap">{timeAgo(incident.timestamp || incident.createdAt)}</span>
+              <span className="text-xs text-slate-600 whitespace-nowrap">{timeAgo(incident.timestamp || incident.createdAt)}</span>
             </div>
-            <p className="text-xs text-slate-600 mt-1 truncate">
-              {incident.roadName ? incident.roadName : <span className="text-slate-400">Not matched to a road</span>}
+            <p className="text-xs text-slate-600 mt-1 break-words">
+              {incident.roadName ? incident.roadName : <span className="text-slate-600 italic">Not matched to a road</span>}
             </p>
-            {incident.description && <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{incident.description}</p>}
+            {incident.description && <p className="text-xs text-slate-600 mt-0.5 line-clamp-2" title={incident.description}>{incident.description}</p>}
             <div className="flex items-center justify-between mt-2">
               <StatusBadge status={incident.status} />
               <button
                 type="button"
                 onClick={() => scrollToSection("incidents")}
-                className="text-xs font-semibold px-2.5 py-1 rounded-md border border-primary-200 text-primary-700 bg-white hover:bg-primary-50 transition"
+                aria-label={`View ${incident.type || "incident"} in Incident Reports`}
+                className="text-xs font-semibold px-2.5 py-1 rounded-md border border-primary-200 text-primary-700 bg-white hover:bg-primary-50 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               >
                 View
               </button>

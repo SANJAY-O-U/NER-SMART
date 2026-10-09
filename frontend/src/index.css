@@ -33,6 +33,33 @@ body {
   outline-offset: 2px;
 }
 
+/* Programmatic focus targets (sections focused after in-page navigation): keep the ring inside the
+   panel so an overflow-hidden card cannot clip it. */
+[tabindex="-1"]:focus-visible {
+  outline-offset: -2px;
+}
+
+/* Dark sidebar: the default blue ring is only 3.4:1 on slate-900, use the palette's light blue. */
+aside :focus-visible {
+  outline-color: #bfdbfe;
+}
+
+/* Leaflet: the map container and its controls are keyboard-focusable (arrow keys pan, +/- zoom). */
+.leaflet-container:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
+/* Popup close glyph: Leaflet's default gray is only ~3.4:1 here. */
+.leaflet-container a.leaflet-popup-close-button {
+  color: #475569;
+}
+.leaflet-bar a:focus-visible,
+.leaflet-control a:focus-visible,
+.leaflet-popup-close-button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
 /* Operational tool: motion is subtle and optional. */
 @media (prefers-reduced-motion: reduce) {
   html {

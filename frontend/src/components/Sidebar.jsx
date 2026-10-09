@@ -29,7 +29,17 @@ export const NAV_SECTIONS = [
 
 export function scrollToSection(id) {
   const el = document.getElementById(id);
-  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (!el) return;
+  let reduceMotion = false;
+  try {
+    reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    // matchMedia unavailable: fall back to smooth scrolling.
+  }
+  el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+  // Move keyboard focus to the section so the next Tab continues from where the user navigated to
+  // (sections carry tabIndex={-1}); preventScroll keeps the scroll above as the only movement.
+  if (el.hasAttribute("tabindex")) el.focus({ preventScroll: true });
 }
 
 /** Tracks which section is currently under the sticky header (scroll-spy). Purely visual. */
@@ -106,13 +116,16 @@ export function Sidebar({ active, onNavigate, navEnabled = true }) {
         }
       >
         <span
-          className={`inline-block text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded ${
+          className={`inline-block text-2xs font-bold tracking-wide px-1.5 py-0.5 rounded ${
             writesEnabled ? "bg-warn-500 text-slate-900" : "bg-slate-700 text-slate-200"
           }`}
         >
           {writesEnabled ? "WRITE" : "READ-ONLY"}
         </span>
-        <span className="hidden xl:block mt-1 text-[11px] text-slate-400 leading-snug">
+        <span className="hidden xl:block mt-1 text-2xs text-slate-400 leading-snug">
+          {writesEnabled ? "Local development mode" : "Protected writes are off in this deployment"}
+        </span>
+        <span className="sr-only xl:hidden">
           {writesEnabled ? "Local development mode" : "Protected writes are off in this deployment"}
         </span>
       </div>

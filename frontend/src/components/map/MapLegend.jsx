@@ -74,7 +74,7 @@ export default function MapLegend({ layers = [], onToggle, showRoutes = false })
               );
             })}
           </ul>
-          <p className="mt-1 text-[11px] text-slate-500">
+          <p className="mt-1 text-2xs text-slate-600">
             Dashed gray = status not verified, never "safe". Thicker line = blocked / disrupted. A blue halo marks the
             road selected in Road Intelligence.
           </p>
@@ -90,10 +90,10 @@ export default function MapLegend({ layers = [], onToggle, showRoutes = false })
                         type="checkbox"
                         checked={layer.visible}
                         onChange={() => onToggle(layer.key)}
-                        className="h-4 w-4 rounded border-slate-300 accent-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                        className="h-4 w-4 rounded border-slate-500 accent-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                       />
                       <span className="flex-1">{layer.label}</span>
-                      <span className="text-slate-500">{layer.count}</span>
+                      <span className="text-slate-600">{layer.count}</span>
                     </label>
                   </li>
                 ))}
@@ -101,7 +101,7 @@ export default function MapLegend({ layers = [], onToggle, showRoutes = false })
             </>
           )}
           {showRoutes && (
-            <p className="mt-1 text-[11px] text-slate-500">Dotted violet line = real route geometry for the analysed route.</p>
+            <p className="mt-1 text-2xs text-slate-600">Dotted violet line = real route geometry for the analysed route.</p>
           )}
         </div>
       )}

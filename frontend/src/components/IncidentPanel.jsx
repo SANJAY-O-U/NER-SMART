@@ -33,15 +33,15 @@ function timeAgo(timestamp) {
  * GET /api/incidents/:id/impact — every value shown comes from the
  * backend's actual current state, never hardcoded.
  */
-function OperationalImpactPanel({ impact, loading, error }) {
-  if (loading) return <p className="text-xs text-slate-500 py-2">Loading impact…</p>;
-  if (error) return <p className="text-xs text-block-700 py-2">{error}</p>;
+function OperationalImpactPanel({ id, impact, loading, error }) {
+  if (loading) return <p id={id} role="status" className="text-xs text-slate-600 py-2">Loading impact…</p>;
+  if (error) return <p id={id} role="alert" className="text-xs text-block-700 py-2">{error}</p>;
   if (!impact) return null;
 
   const { road, accessibility, accessibilityWithoutThisIncident, alerts, routeImpactNote } = impact;
 
   return (
-    <div className="text-xs bg-primary-50/50 border border-primary-200 rounded-md p-2.5 space-y-2 mt-1">
+    <div id={id} className="text-xs bg-primary-50/50 border border-primary-200 rounded-md p-2.5 space-y-2 mt-1">
       <p className="font-semibold text-slate-800 uppercase tracking-wide text-2xs">Operational Impact</p>
 
       {road ? (
@@ -90,7 +90,7 @@ function OperationalImpactPanel({ impact, loading, error }) {
           <ul className="space-y-0.5">
             {alerts.map((a) => (
               <li key={a.id} className="text-slate-500">
-                ⚠ {a.message}
+                <span aria-hidden="true">⚠</span> {a.message}
               </li>
             ))}
           </ul>
@@ -221,14 +221,16 @@ export default function IncidentPanel({ incidents, onUpdateStatus, updatingId, u
             )}
 
             <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
-              <span className="text-xs text-slate-500" title={(incident.timestamp || incident.createdAt) ? new Date(incident.timestamp || incident.createdAt).toLocaleString() : undefined}>
+              <span className="text-xs text-slate-600" title={(incident.timestamp || incident.createdAt) ? new Date(incident.timestamp || incident.createdAt).toLocaleString() : undefined}>
                 {SOURCE_LABEL[incident.source] || incident.source} · {timeAgo(incident.timestamp || incident.createdAt)}
               </span>
               <div className="flex items-center gap-2">
                 {incident.roadId && (
                   <button
+                    type="button"
                     onClick={() => toggleImpact(incident.id)}
                     aria-expanded={isExpanded}
+                    aria-controls={isExpanded ? `incident-impact-${incident.id}` : undefined}
                     className="text-xs font-semibold px-2.5 py-1 rounded-md border border-primary-500 text-primary-700 hover:bg-primary-50 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                   >
                     {isExpanded ? "Hide Impact" : "View Impact"}
@@ -236,9 +238,11 @@ export default function IncidentPanel({ incidents, onUpdateStatus, updatingId, u
                 )}
                 {flow && onUpdateStatus && (
                   <button
+                    type="button"
                     onClick={() => onUpdateStatus(incident.id, flow.next)}
+                    aria-label={`${flow.label}: ${incident.type || "incident"}`}
                     disabled={updatingId === incident.id}
-                    className="text-xs font-semibold px-2.5 py-1 rounded-md bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1"
+                    className="text-xs font-semibold px-2.5 py-1 rounded-md bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1"
                   >
                     {updatingId === incident.id ? "Updating…" : flow.label}
                   </button>
@@ -248,6 +252,7 @@ export default function IncidentPanel({ incidents, onUpdateStatus, updatingId, u
 
             {isExpanded && (
               <OperationalImpactPanel
+                id={`incident-impact-${incident.id}`}
                 impact={impactCache[incident.id]}
                 loading={impactLoading === incident.id}
                 error={impactLoading === incident.id ? null : impactError}
