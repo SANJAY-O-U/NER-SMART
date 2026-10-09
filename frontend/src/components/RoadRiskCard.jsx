@@ -1,12 +1,22 @@
 import StatusBadge, { RiskBadge } from "./StatusBadge";
+import { accessibilityDisplay, roadStatusDisplay } from "../theme/status";
 
-const STATE_STYLE = {
-  OPEN: "bg-emerald-50 border-emerald-200",
-  RESTRICTED: "bg-amber-50 border-amber-200",
-  HIGH_RISK: "bg-orange-50 border-orange-200",
-  BLOCKED: "bg-red-50 border-red-200",
-  UNKNOWN: "bg-slate-50 border-slate-200",
-};
+/** One label/value pair in the road identification grid. Renders an explicit "not available" rather than a blank. */
+function Field({ label, value, unavailable = "Not available" }) {
+  const has = value !== undefined && value !== null && value !== "";
+  return (
+    <div className="min-w-0">
+      <dt className="text-2xs uppercase tracking-wide text-slate-500">{label}</dt>
+      <dd className={`text-sm break-words ${has ? "font-medium text-slate-800" : "text-slate-500 italic"}`}>
+        {has ? value : unavailable}
+      </dd>
+    </div>
+  );
+}
+
+function SectionTitle({ children }) {
+  return <p className="text-2xs font-bold uppercase tracking-wider text-slate-600">{children}</p>;
+}
 
 /**
  * Lets the user pick a road, see its current risk, and trigger the
@@ -33,13 +43,17 @@ export default function RoadRiskCard({
     : 0;
 
   if (!safeRoads.length) {
-    return <p className="text-sm text-slate-500 py-4 text-center">No road data available.</p>;
+    return <p className="text-sm text-slate-600 py-4 text-center">No road data available.</p>;
   }
 
   return (
     <div className="space-y-3">
+      <label htmlFor="road-select" className="block text-2xs font-bold uppercase tracking-wider text-slate-600">
+        Road
+      </label>
       <select
-        className="w-full text-sm border border-slate-300 rounded-md px-2 py-1.5 bg-white"
+        id="road-select"
+        className="w-full text-sm border border-slate-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
         value={selectedRoad?.id || ""}
         onChange={(e) => onSelectRoad(e.target.value)}
       >
@@ -51,26 +65,44 @@ export default function RoadRiskCard({
       </select>
 
       {selectedRoad && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-700">{selectedRoad.name}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500">Road Status:</span>
+        <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50/60 p-3">
+          <div className="flex items-start justify-between gap-2 flex-wrap">
+            <h3 className="text-base font-semibold leading-tight text-slate-900">{selectedRoad.name}</h3>
             <StatusBadge status={selectedRoad.status} />
           </div>
-          <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+            <Field label="Road ID" value={selectedRoad.id} />
+            <Field label="District" value={selectedRoad.district} unavailable="Not assigned" />
+            <Field label="State" value={selectedRoad.state} />
+            <Field label="Corridor" value={selectedRoad.corridor} />
+            <Field label="Source" value={selectedRoad.source} />
+            <Field label="Source vintage" value={selectedRoad.sourceVintage} />
+            <Field
+              label="Physical status"
+              value={
+                selectedRoad.physicalStatus
+                  ? `${roadStatusDisplay(selectedRoad.physicalStatus).glyph} ${roadStatusDisplay(selectedRoad.physicalStatus).label}${
+                      selectedRoad.physicalStatus === "UNKNOWN" ? " (unverified)" : ""
+                    }`
+                  : undefined
+              }
+            />
+          </dl>
+          <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 pt-2 border-t border-slate-200">
             <div>
-              Flood risk: <span className="font-semibold text-slate-700">{selectedRoad.floodRisk ?? "-"}</span>
+              Flood risk: <span className="font-semibold text-slate-800">{selectedRoad.floodRisk ?? "-"}</span>
             </div>
             <div>
-              Landslide risk:{" "}
-              <span className="font-semibold text-slate-700">{selectedRoad.landslideRisk ?? "-"}</span>
+              Landslide risk: <span className="font-semibold text-slate-800">{selectedRoad.landslideRisk ?? "-"}</span>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500">Overall (baseline):</span>
-            <RiskBadge score={avgRisk} />
+            <span className="text-xs text-slate-600">Overall (baseline):</span>
+            {selectedRoad.floodRisk == null && selectedRoad.landslideRisk == null ? (
+              <span className="text-xs text-slate-500 italic">Not available — no risk data for this road</span>
+            ) : (
+              <RiskBadge score={avgRisk} />
+            )}
           </div>
         </div>
       )}
@@ -86,33 +118,35 @@ export default function RoadRiskCard({
           <button
             onClick={() => onSimulate(selectedRoad?.id)}
             disabled={!selectedRoad || simulating}
-            className="w-full text-sm font-semibold px-3 py-2 rounded-md border border-amber-400 bg-white text-amber-800 hover:bg-amber-100 disabled:opacity-50 transition"
+            className="w-full text-sm font-semibold px-3 py-2 rounded-md border border-amber-400 bg-white text-amber-800 hover:bg-amber-100 disabled:opacity-50 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
           >
             {simulating ? "Simulating…" : "RUN LANDSLIDE SIMULATION"}
           </button>
         </div>
       )}
 
-      {simulationError && <p className="text-xs text-red-600">{simulationError}</p>}
+      {simulationError && <p role="alert" className="text-xs font-medium text-block-700">{simulationError}</p>}
 
       {accessibility && (
-        <div
-          className={`text-xs border rounded-md p-2 space-y-1.5 ${
-            STATE_STYLE[accessibility.state] || STATE_STYLE.UNKNOWN
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-slate-700">Operational Accessibility</span>
-            <span className="text-[11px] font-semibold">
-              {accessibility.accessibilityScore !== null ? `${accessibility.accessibilityScore} / 100` : "—"}
+        <div className={`text-xs border rounded-md p-3 space-y-2 ${accessibilityDisplay(accessibility.state).panel}`}>
+          <div className="flex items-center justify-between gap-2">
+            <SectionTitle>Operational Accessibility</SectionTitle>
+            <span className="text-xs font-semibold text-slate-700">
+              {accessibility.accessibilityScore !== null && accessibility.accessibilityScore !== undefined
+                ? `${accessibility.accessibilityScore} / 100`
+                : "Score unavailable"}
             </span>
           </div>
-          <p className="text-[10.5px] text-slate-400 italic -mt-1">
+          <p className="text-2xs text-slate-600 italic -mt-1">
             Road status and evidence-based accessibility are evaluated separately.
           </p>
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-sm">{accessibility.state}</span>
-            <span className="text-slate-500">Confidence: {accessibility.confidence || "—"}</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`inline-flex items-center gap-1 text-sm font-bold ${accessibilityDisplay(accessibility.state).text}`}>
+              <span aria-hidden="true">{accessibilityDisplay(accessibility.state).glyph}</span>
+              {accessibilityDisplay(accessibility.state).label}
+            </span>
+            <span className="text-slate-500">({accessibility.state})</span>
+            <span className="text-slate-600">Confidence: {accessibility.confidence || "—"}</span>
           </div>
           {accessibility.factors && accessibility.factors.length > 0 && (
             <ul className="space-y-0.5 pt-1 border-t border-black/10">
@@ -127,13 +161,13 @@ export default function RoadRiskCard({
               ))}
             </ul>
           )}
-          <p className="text-slate-500 italic pt-1 border-t border-black/10">{accessibility.explanation}</p>
+          <p className="text-slate-600 italic pt-1 border-t border-black/10">{accessibility.explanation}</p>
         </div>
       )}
 
       {weather && (
-        <div className="text-xs bg-slate-50 border border-slate-200 rounded-md p-2 space-y-1">
-          <p className="font-semibold text-slate-700">Weather context</p>
+        <div className="text-xs bg-white border border-slate-200 rounded-md p-3 space-y-1">
+          <SectionTitle>Weather context</SectionTitle>
           {weather.weather ? (
             <>
               <p>
@@ -144,9 +178,12 @@ export default function RoadRiskCard({
                 Source: {weather.weather.source} · {weather.distanceToStationKm}km away · {weather.matchConfidence} confidence
               </p>
               <p className="text-slate-500">Freshness: {weather.freshness}</p>
+              {weather.weather.observedAt && (
+                <p className="text-slate-500">Observed: {new Date(weather.weather.observedAt).toLocaleString()}</p>
+              )}
             </>
           ) : (
-            <p className="text-slate-500">
+            <p className="text-slate-600 bg-neutral-50 border border-neutral-200 rounded px-2 py-1">
               Weather unavailable{weather.reason ? ` — ${weather.reason}` : ""}
             </p>
           )}
@@ -154,13 +191,13 @@ export default function RoadRiskCard({
       )}
 
       {disasterContext && (
-        <div className="text-xs bg-amber-50 border border-amber-200 rounded-md p-2 space-y-2">
-          <p className="font-semibold text-slate-700">
+        <div className="text-xs bg-white border border-slate-200 rounded-md p-3 space-y-2">
+          <SectionTitle>
             Disaster context {disasterContext.district ? `— ${disasterContext.district}` : ""}
-          </p>
+          </SectionTitle>
           {disasterContext.activeAlertCount > 0 ? (
             disasterContext.alerts.map((a) => (
-              <div key={a.id} className="border-t border-amber-200 pt-1.5 first:border-t-0 first:pt-0">
+              <div key={a.id} className="border-t border-slate-200 pt-1.5 first:border-t-0 first:pt-0">
                 <p className="font-medium text-slate-700">{a.event || "Alert"}</p>
                 <p className="text-slate-500">
                   Severity: {a.severity || "Unknown"} · Urgency: {a.urgency || "Unknown"} · Certainty: {a.certainty || "Unknown"}
@@ -173,7 +210,7 @@ export default function RoadRiskCard({
             ))
           ) : disasterContext.feed && disasterContext.feed.status !== "LIVE" ? (
             // Phase 8C.7: zero alerts while the feed is down is "unknown", not "all clear".
-            <p className="text-slate-500">
+            <p className="text-slate-700 bg-neutral-50 border border-neutral-300 rounded px-2 py-1">
               NDMA SACHET feed currently {String(disasterContext.feed.status).toLowerCase()} — no current disaster data for this road (not an all-clear).
             </p>
           ) : !disasterContext.district ? (
@@ -185,7 +222,7 @@ export default function RoadRiskCard({
       )}
 
       {simulationResult && (
-        <div className="text-xs bg-red-50 border border-red-200 rounded-md p-2 space-y-1">
+        <div className="text-xs bg-block-50 border border-block-200 rounded-md p-2 space-y-1">
           <p>
             Road status: <span className="font-semibold">{simulationResult.roadStatus}</span>
           </p>

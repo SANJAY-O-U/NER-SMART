@@ -1,4 +1,3 @@
-import StatusBadge from "./StatusBadge";
 import { CheckCircleIcon } from "./icons";
 import { severityDisplay, timeAgo } from "../theme/status";
 
@@ -52,11 +51,23 @@ export default function AlertPanel({ alerts, roads = [] }) {
       {sorted.map((a) => {
         const road = roadName(a);
         const sev = severityDisplay(a.severity);
+        const when = a.generatedAt || a.timestamp;
+        const urgent = sev.rank >= 3; // HIGH / CRITICAL: tinted row + heavier bar
         return (
-          <li key={a.id} className={`rounded-md border border-slate-200 border-l-4 bg-white p-3 ${sev.bar}`}>
+          <li
+            key={a.id}
+            className={`rounded-md border border-l-4 p-3 ${sev.bar} ${
+              urgent ? `${sev.panel} ${sev.rank === 4 ? "border-l-[6px]" : ""}` : "border-slate-200 bg-white"
+            }`}
+          >
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
-                <StatusBadge status={a.severity} />
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-2xs font-bold border whitespace-nowrap ${sev.badge}`}
+                >
+                  <span aria-hidden="true">{sev.glyph}</span>
+                  {sev.label}
+                </span>
                 <span className="text-xs font-medium text-slate-600" title={a.type}>
                   {humanize(a.type)}
                 </span>
@@ -66,12 +77,20 @@ export default function AlertPanel({ alerts, roads = [] }) {
                   </span>
                 )}
               </div>
-              <span className="text-xs text-slate-500 whitespace-nowrap">{timeAgo(a.generatedAt || a.timestamp)}</span>
+              {when && (
+                <time
+                  dateTime={new Date(when).toString() === "Invalid Date" ? undefined : new Date(when).toISOString()}
+                  title={new Date(when).toLocaleString()}
+                  className="text-xs text-slate-500 whitespace-nowrap"
+                >
+                  {timeAgo(when)}
+                </time>
+              )}
             </div>
-            <p className="text-sm font-medium text-slate-800 mt-1.5">{a.message}</p>
+            <p className={`text-sm mt-1.5 text-slate-900 ${urgent ? "font-semibold" : "font-medium"}`}>{a.message}</p>
             {(road || a.triggerReason) && (
-              <p className="text-xs text-slate-500 mt-1">
-                {road && <span className="font-medium text-slate-600">{road}</span>}
+              <p className="text-xs text-slate-600 mt-1">
+                {road && <span className="font-medium text-slate-700">{road}</span>}
                 {road && a.triggerReason && " — "}
                 {a.triggerReason}
               </p>
