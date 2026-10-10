@@ -1,7 +1,7 @@
 import React from "react";
 import { CircleMarker, Polyline, Popup, Tooltip } from "react-leaflet";
 import MapPopup from "./MapPopup";
-import { roadStatusDisplay } from "../../theme/status";
+import { roadStatusDisplay, effectiveRoadStatus } from "../../theme/status";
 
 /**
  * RoadLayer
@@ -93,11 +93,9 @@ export default function RoadLayer({ roads = [], onRoadClick, selectedRoadId }) {
   return (
     <>
       {ordered.map((road) => {
-        // Real imported roads use physicalStatus (defaults UNKNOWN);
-        // legacy demo roads use the original `status` field.
-        const displayStatus = road.physicalStatus && road.physicalStatus !== "UNKNOWN"
-          ? road.physicalStatus
-          : road.status || "UNKNOWN";
+        // One shared rule (theme/status.js): physicalStatus wins; an imported road's default legacy
+        // "OPEN" never reads as accessible; demo roads keep using the legacy `status`.
+        const displayStatus = effectiveRoadStatus(road);
         const statusInfo = roadStatusDisplay(displayStatus);
         const color = statusInfo.hex;
         const enrichedRoad = { ...road, overallRisk: computeOverallRisk(road) };

@@ -1,5 +1,5 @@
 import React from "react";
-import { roadStatusDisplay, riskLevelDisplay } from "../../theme/status";
+import { roadStatusDisplay, riskLevelDisplay, effectiveRoadStatus } from "../../theme/status";
 
 /**
  * MapPopup
@@ -46,7 +46,7 @@ export default function MapPopup({ type, data, linkToIntelligence = false }) {
   if (!data) return null;
 
   if (type === "road") {
-    const status = data.physicalStatus && data.physicalStatus !== "UNKNOWN" ? data.physicalStatus : data.status;
+    const status = effectiveRoadStatus(data);
     return (
       <div className="min-w-[190px] max-w-[260px]">
         <div className="font-semibold text-base leading-tight text-slate-900">{data.name || "Unnamed Road"}</div>

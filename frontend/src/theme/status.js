@@ -113,6 +113,42 @@ const ROAD_STATUS = {
   UNKNOWN: { glyph: "?", tone: "neutral" },
 };
 
+// Physical statuses that carry real meaning. UNKNOWN is deliberately absent: it means "no information".
+const PHYSICAL_KNOWN = ["OPEN", "RESTRICTED", "HIGH_RISK", "BLOCKED"];
+// Legacy `status` values a demo road may carry (the simulation sets BLOCKED).
+const LEGACY_DEMO_KNOWN = ["OPEN", "RESTRICTED", "RISKY", "HIGH_RISK", "BLOCKED"];
+// Legacy values on an IMPORTED road that are explicit restrictions and must stay visible.
+const LEGACY_IMPORTED_RESTRICTIONS = ["RESTRICTED", "BLOCKED"];
+
+const upper = (v) => (v == null ? "" : String(v).trim().toUpperCase());
+
+/** Imported roads carry a provenance `source`; demo/prototype roads have it null, missing or empty. */
+export function isImportedRoad(road) {
+  return typeof road?.source === "string" && road.source.trim() !== "";
+}
+
+/**
+ * The single status the map line, popup badge and Road Intelligence badge should all show.
+ * Returns one of OPEN | RESTRICTED | RISKY | HIGH_RISK | BLOCKED | UNKNOWN; never invents OPEN.
+ *
+ *  1. A recognised, non-UNKNOWN physicalStatus always wins.
+ *  2. Imported road: the importer's default legacy status "OPEN" means "no information", so it must not
+ *     override an UNKNOWN/missing physicalStatus (result UNKNOWN). An explicit legacy RESTRICTED/BLOCKED
+ *     is kept visible.
+ *  3. Demo road (no source): legacy `status` still drives the status, as before (simulated BLOCKED works).
+ *  4. Missing or unrecognised values resolve to UNKNOWN.
+ */
+export function effectiveRoadStatus(road) {
+  const physical = upper(road?.physicalStatus);
+  if (PHYSICAL_KNOWN.includes(physical)) return physical;
+
+  const legacy = upper(road?.status);
+  if (isImportedRoad(road)) {
+    return LEGACY_IMPORTED_RESTRICTIONS.includes(legacy) ? legacy : "UNKNOWN";
+  }
+  return LEGACY_DEMO_KNOWN.includes(legacy) ? legacy : "UNKNOWN";
+}
+
 /** Raw wording is preserved: a stored "OPEN" is shown as OPEN, not as ACCESSIBLE. */
 export function roadStatusDisplay(status) {
   const key = (status ?? "").toString().toUpperCase();

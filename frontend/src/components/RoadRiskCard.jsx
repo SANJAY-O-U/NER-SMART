@@ -1,5 +1,5 @@
 import StatusBadge, { RiskBadge } from "./StatusBadge";
-import { accessibilityDisplay, roadStatusDisplay } from "../theme/status";
+import { accessibilityDisplay, roadStatusDisplay, effectiveRoadStatus } from "../theme/status";
 
 /** One label/value pair in the road identification grid. Renders an explicit "not available" rather than a blank. */
 function Field({ label, value, unavailable = "Not available" }) {
@@ -68,7 +68,7 @@ export default function RoadRiskCard({
         <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50/60 p-3">
           <div className="flex items-start justify-between gap-2 flex-wrap">
             <h3 className="text-base font-semibold leading-tight text-slate-900">{selectedRoad.name}</h3>
-            <StatusBadge status={selectedRoad.status} />
+            <StatusBadge status={effectiveRoadStatus(selectedRoad)} />
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
             <Field label="Road ID" value={selectedRoad.id} />
