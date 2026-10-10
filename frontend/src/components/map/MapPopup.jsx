@@ -1,5 +1,5 @@
 import React from "react";
-import { roadStatusDisplay, riskLevelDisplay, effectiveRoadStatus } from "../../theme/status";
+import { roadStatusDisplay, riskLevelDisplay, roadStatusConflict } from "../../theme/status";
 
 /**
  * MapPopup
@@ -46,7 +46,8 @@ export default function MapPopup({ type, data, linkToIntelligence = false }) {
   if (!data) return null;
 
   if (type === "road") {
-    const status = effectiveRoadStatus(data);
+    const conflict = roadStatusConflict(data);
+    const status = conflict.effective;
     return (
       <div className="min-w-[190px] max-w-[260px]">
         <div className="font-semibold text-base leading-tight text-slate-900">{data.name || "Unnamed Road"}</div>
@@ -60,16 +61,31 @@ export default function MapPopup({ type, data, linkToIntelligence = false }) {
           <span className="text-slate-500 text-sm">Overall risk</span>
           <RiskBadge risk={data.overallRisk ?? data.risk} />
         </div>
+        {conflict.conflict && (
+          <div className="mt-1 mb-1 rounded border border-warn-200 bg-warn-50 px-2 py-1">
+            <p className="text-2xs font-semibold text-slate-800">Sources disagree — most restrictive shown</p>
+            <ul className="text-2xs text-slate-700">
+              {conflict.sources.map((s) => (
+                <li key={s.key}>
+                  {s.label}: <span className="font-semibold">{s.status}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {data.source && (
           <>
             <Row label="Source" value={data.source.split(' — ')[0].split(' (')[0]} />
-            {data.physicalStatus === "UNKNOWN" && (
+            {status === "UNKNOWN" && (
               <p className="text-2xs text-slate-600 mt-1 italic">
                 Closure status not verified — imported geometry only.
               </p>
             )}
           </>
         )}
+        <p className="text-2xs text-slate-600 mt-1">
+          Stored status only; route accessibility is shown in Road Intelligence.
+        </p>
         {linkToIntelligence && (
           <a
             href="#road-intelligence"

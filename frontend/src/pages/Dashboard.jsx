@@ -13,6 +13,7 @@ import ErrorMessage from "../components/ErrorMessage";
 import ActiveIncidents from "../components/ActiveIncidents";
 // Supplied by Member 2 — Map/GIS developer. Do not implement this here.
 import MapView from "../components/map/MapView";
+import MapRoadSelect from "../components/map/MapRoadSelect";
 import {
   getShipments,
   getVehicles,
@@ -365,9 +366,12 @@ export default function Dashboard() {
             title="NER Map"
             subtitle="Real road geometry · incidents · facilities"
             actions={
-              <span className="text-xs text-slate-500 whitespace-nowrap">
-                {roads.length} roads · {incidents.length} incidents · {vehicles.length} vehicles
-              </span>
+              <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+                <MapRoadSelect roads={roads} selectedRoadId={selectedRoadId} onSelect={setSelectedRoadId} />
+                <span className="text-xs text-slate-500 whitespace-nowrap">
+                  {roads.length} roads · {incidents.length} incidents · {vehicles.length} vehicles
+                </span>
+              </div>
             }
             flush
             className="h-[460px] md:h-[540px] xl:h-full"

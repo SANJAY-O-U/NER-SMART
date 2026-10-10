@@ -134,11 +134,33 @@ other than `test`. Missing variable names are logged, never their values.
 
 ```bash
 cd backend && npm test            # node --test test/*.test.js; no database or network needed
+cd frontend && npm test           # node --test test/*.test.js; dependency-free tests of the road-status policy and map styling
 cd frontend && npm run build      # production bundle (fails if VITE_API_BASE_URL is unset or VITE_API_KEY is set)
 cd flutter_app && flutter test    # Dart unit and widget tests
 ```
 
-The frontend has no automated test suite.
+The frontend tests cover the pure status and styling logic only. There are no component, browser or accessibility test
+suites, and nothing in the repository runs any of these tests automatically (there is no CI configuration).
+
+## Road status on the dashboard
+
+The map line, popup badge, Road Intelligence badge, legend and the "Blocked (Stored status)" and "Unverified Roads" KPIs
+all use one **stored-status display policy** (`frontend/src/theme/status.js`). It summarises what is *stored* on each
+road. It is **not** a replacement for the backend accessibility engine, which also weighs weather, SACHET alerts and
+field incidents and is shown separately, per selected road, in Road Intelligence.
+
+- **Evidence:** `physicalStatus`, `officialStatus` and `fieldStatus` (OPEN, RESTRICTED, HIGH_RISK, BLOCKED), plus the
+  legacy `status` field. Legacy BLOCKED and RESTRICTED always count (the landslide simulation writes BLOCKED there).
+  Legacy OPEN counts only on a demo road (no `source`); on an imported road it is the importer's default and is ignored.
+  UNKNOWN, missing and unrecognised values are ignored.
+- **Precedence:** the most restrictive recognised value wins: BLOCKED > RESTRICTED > HIGH_RISK > OPEN (the order the
+  backend engine uses), so an OPEN never hides a block. When sources disagree the popup lists each one.
+- **No evidence means UNKNOWN:** a neutral, dashed gray line. It is never presented as open, safe or accessible, and it is
+  counted separately ("Unverified Roads"), never as blocked.
+
+Keyboard: road lines are not tab stops. Use the **Road** dropdown in the map panel header (or the Road Intelligence
+selector); both drive the same selection as a map click and neither pans the map. Verified in Chromium only; other
+browsers and screen readers have not been tested.
 
 ## Deployment notes
 

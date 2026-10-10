@@ -28,10 +28,10 @@ export function CriticalKPI({ label, value, hint, tone: toneName = "neutral", Ic
   );
 }
 
-export function CompactKPI({ label, value, hint, dot }) {
+export function CompactKPI({ label, value, hint, dot, className = "" }) {
   const t = dot ? tone(dot) : null;
   return (
-    <div title={hint} className="bg-white px-3.5 py-2.5 flex items-center justify-between gap-3 min-w-0">
+    <div title={hint} className={`bg-white px-3.5 py-2.5 flex items-center justify-between gap-3 min-w-0 ${className}`}>
       <dt className="text-xs text-slate-600 leading-tight">{label}</dt>
       <dd className="flex items-center gap-1.5 text-base font-semibold text-slate-900 leading-none shrink-0">
         {t && <span className={`h-2 w-2 rounded-full ${t.dot}`} aria-hidden="true" />}
