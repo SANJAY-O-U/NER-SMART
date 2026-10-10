@@ -15,7 +15,9 @@ export default function Card({ id, title, children, className = "", subtitle, ac
     >
       {title && (
         <div
-          className={`flex items-start justify-between gap-3 ${
+          // flex-wrap: when the actions (e.g. the map's Road dropdown) do not fit beside the title, they
+          // drop to their own line instead of squeezing the title into a one-word-per-line column.
+          className={`flex flex-wrap items-start justify-between gap-x-3 gap-y-2 ${
             flush ? "px-4 pt-3 pb-2.5 border-b border-slate-100 shrink-0" : "mb-3"
           }`}
         >
@@ -23,7 +25,7 @@ export default function Card({ id, title, children, className = "", subtitle, ac
             <h2 className="text-xs font-bold text-slate-700 uppercase tracking-wider">{title}</h2>
             {subtitle && <p className="text-2xs text-slate-500 mt-0.5">{subtitle}</p>}
           </div>
-          {actions && <div className="shrink-0">{actions}</div>}
+          {actions && <div className="shrink-0 max-w-full">{actions}</div>}
         </div>
       )}
       {flush ? <div className="flex-1 min-h-0">{children}</div> : children}

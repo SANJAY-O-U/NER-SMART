@@ -1,5 +1,5 @@
 import StatusBadge, { RiskBadge } from "./StatusBadge";
-import { accessibilityDisplay, roadStatusDisplay, effectiveRoadStatus } from "../theme/status";
+import { accessibilityDisplay, roadStatusDisplay, effectiveRoadStatus, isImportedRoad } from "../theme/status";
 
 /** One label/value pair in the road identification grid. Renders an explicit "not available" rather than a blank. */
 function Field({ label, value, unavailable = "Not available" }) {
@@ -12,6 +12,21 @@ function Field({ label, value, unavailable = "Not available" }) {
       </dd>
     </div>
   );
+}
+
+/** "✓ OPEN" / "? UNKNOWN (unverified)" for a stored status field; undefined (shown as "Not available") when absent. */
+function storedStatusText(value) {
+  if (!value) return undefined;
+  const info = roadStatusDisplay(value);
+  return `${info.glyph} ${info.label}${info.label === "UNKNOWN" ? " (unverified)" : ""}`;
+}
+
+/** The legacy `status` field (the landslide simulation writes BLOCKED here). On an imported road OPEN is just the importer default. */
+function legacyStatusText(road) {
+  if (!road.status) return undefined;
+  const info = roadStatusDisplay(road.status);
+  const ignored = isImportedRoad(road) && info.label === "OPEN" ? " (importer default, not evidence)" : "";
+  return `${info.glyph} ${info.label}${ignored}`;
 }
 
 function SectionTitle({ children }) {
@@ -70,6 +85,10 @@ export default function RoadRiskCard({
             <h3 className="text-base font-semibold leading-tight text-slate-900">{selectedRoad.name}</h3>
             <StatusBadge status={effectiveRoadStatus(selectedRoad)} />
           </div>
+          <p className="text-2xs text-slate-600 -mt-1.5">
+            Stored road status (the most restrictive of the sources below). Operational accessibility is evaluated
+            separately, further down.
+          </p>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
             <Field label="Road ID" value={selectedRoad.id} />
             <Field label="District" value={selectedRoad.district} unavailable="Not assigned" />
@@ -77,16 +96,10 @@ export default function RoadRiskCard({
             <Field label="Corridor" value={selectedRoad.corridor} />
             <Field label="Source" value={selectedRoad.source} />
             <Field label="Source vintage" value={selectedRoad.sourceVintage} />
-            <Field
-              label="Physical status"
-              value={
-                selectedRoad.physicalStatus
-                  ? `${roadStatusDisplay(selectedRoad.physicalStatus).glyph} ${roadStatusDisplay(selectedRoad.physicalStatus).label}${
-                      selectedRoad.physicalStatus === "UNKNOWN" ? " (unverified)" : ""
-                    }`
-                  : undefined
-              }
-            />
+            <Field label="Physical status" value={storedStatusText(selectedRoad.physicalStatus)} />
+            <Field label="Official status" value={storedStatusText(selectedRoad.officialStatus)} />
+            <Field label="Field status" value={storedStatusText(selectedRoad.fieldStatus)} />
+            <Field label="Legacy / simulated status" value={legacyStatusText(selectedRoad)} />
           </dl>
           <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 pt-2 border-t border-slate-200">
             <div>

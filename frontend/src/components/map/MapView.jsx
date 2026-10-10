@@ -121,8 +121,9 @@ export default function MapView({
       aria-label="Map of roads, incidents and vehicles"
       className={`w-full ${heightClassName} overflow-hidden relative isolate ${bare ? "" : "rounded-lg border border-slate-200"}`}
     >
-      {/* Keyboard alternative to the map: road lines cannot take keyboard focus, so this jumps to the
-          Road Intelligence road selector, which selects a road through the same state as a map click. */}
+      {/* Keyboard alternatives to the map: road lines cannot take keyboard focus (and hundreds of tab stops
+          would be worse), so the map panel header carries one "Road" dropdown (MapRoadSelect) and this
+          link jumps to the Road Intelligence selector. Both set the same selection state as a map click. */}
       <a
         href="#road-select"
         className="sr-only focus:not-sr-only absolute z-[1100] top-2 left-2 rounded-md border border-primary-600 bg-white px-3 py-1.5 text-xs font-semibold text-primary-700 shadow-raised"

@@ -1,7 +1,8 @@
-import React from "react";
-import { CircleMarker, Polyline, Popup, Tooltip } from "react-leaflet";
+import React, { useState } from "react";
+import { CircleMarker, Pane, Polyline, Popup, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import MapPopup from "./MapPopup";
 import { roadStatusDisplay, effectiveRoadStatus } from "../../theme/status";
+import { CASING_COLOR, UNKNOWN_DASH, roadLineWeight, roadCasingWeight } from "./roadStyle";
 
 /**
  * RoadLayer
@@ -12,30 +13,28 @@ import { roadStatusDisplay, effectiveRoadStatus } from "../../theme/status";
  *   - a color-coded point marker (unchanged from the screening demo), for
  *     prototype roads that only carry a single {lat, lng}.
  *
- * A road is never visually implied to be OPEN/BLOCKED from imported data
- * alone: `physicalStatus` defaults to UNKNOWN for imported roads (the
- * source dataset carries no closure status), and UNKNOWN renders as
- * neutral gray and dashed, not green. The legacy `status` field (used by the
- * landslide simulation) still drives color for prototype roads exactly
- * as before.
+ * The status drawn is the frontend STORED-STATUS display policy in theme/status.js
+ * (effectiveRoadStatus): the most restrictive recognised status among the physical, official and field
+ * statuses and the legacy/simulated status wins; a road with none is UNKNOWN. UNKNOWN is a neutral gray
+ * dashed line, never green, so an unverified road is never presented as open or safe. This is a summary
+ * of what is stored on the road, not the backend accessibility engine's verdict.
  *
- * Colors come from theme/status.js (the app's semantic palette). Status is
- * also conveyed without color: stroke weight, a dashed line for UNKNOWN,
- * and a hover tooltip carrying the status glyph + label.
+ * Colors come from theme/status.js. Status is also conveyed without color: stroke weight, a dashed line
+ * for UNKNOWN, and a hover tooltip carrying the status glyph + label. Every line sits on a thin white
+ * casing (drawn in a pane below all roads, so a neighbour's casing never covers another road) and its
+ * weight scales with the map zoom (roadStyle.js).
  *
  * Props:
  *   roads: Array<{
  *     id, name,
  *     status ('OPEN' | 'RESTRICTED' | 'BLOCKED'),         // legacy/demo field
- *     physicalStatus ('OPEN'|'RESTRICTED'|'HIGH_RISK'|'BLOCKED'|'UNKNOWN'), // Phase 1 real-data field
+ *     physicalStatus / officialStatus / fieldStatus ('OPEN'|'RESTRICTED'|'HIGH_RISK'|'BLOCKED'|'UNKNOWN'),
  *     lat, lng, floodRisk, landslideRisk, overallRisk?,
  *     geometry?: { type: 'LineString'|'MultiLineString', coordinates: [...] }
  *   }>
  *   onRoadClick?: (road) => void
  *   selectedRoadId?: string   // highlights the road currently selected in Road Intelligence
  */
-
-const WEIGHT = { BLOCKED: 5, HIGH_RISK: 4 };
 
 function computeOverallRisk(road) {
   if (road.overallRisk !== undefined) return road.overallRisk;
@@ -58,43 +57,62 @@ function geometryToPaths(geometry) {
 }
 
 /**
- * Keyboard / assistive-technology support for a road layer (Leaflet draws it as a bare SVG element).
- * Leaflet already opens the popup on Enter (its own `keypress` handler) but never fires `click`, so a
- * keyboard user could open a popup without selecting the road. Enter now calls the same `onRoadClick`
- * a mouse click does; nothing else about selection changes. The element also gets a role and a name.
+ * Road lines are bare SVG elements that cannot take keyboard focus, so they must not announce themselves
+ * as buttons (they used to carry role="button" and a "Press Enter" label that no keyboard user could
+ * ever act on). They are hidden from assistive technology; keyboard users select a road with the map's
+ * "Road" dropdown or the Road Intelligence selector, which drive the same selection state as a click.
  */
-function a11yProps(road, statusInfo, onRoadClick) {
-  const label = `${road.name || "Unnamed road"}, status ${statusInfo.label}.${onRoadClick ? " Press Enter to select this road." : ""}`;
-  const apply = (layer) => {
-    const el = layer && typeof layer.getElement === "function" ? layer.getElement() : null;
-    if (el) {
-      el.setAttribute("role", "button");
-      el.setAttribute("aria-label", label);
-    }
-  };
-  return {
-    apply,
-    handlers: {
-      keypress: (e) => {
-        const key = e.originalEvent;
-        if (onRoadClick && key && (key.key === "Enter" || key.keyCode === 13)) onRoadClick(road);
-      },
-      add: (e) => apply(e.target),
-    },
-  };
+function hideFromAssistiveTech(layer) {
+  const el = layer && typeof layer.getElement === "function" ? layer.getElement() : null;
+  if (el) {
+    el.removeAttribute("role");
+    el.removeAttribute("aria-label");
+    el.setAttribute("aria-hidden", "true");
+  }
+}
+
+/** Current map zoom, kept in state so line weights follow zoom changes. */
+function useMapZoom() {
+  const map = useMap();
+  const [zoom, setZoom] = useState(() => map.getZoom());
+  useMapEvents({ zoomend: () => setZoom(map.getZoom()) });
+  return zoom;
 }
 
 export default function RoadLayer({ roads = [], onRoadClick, selectedRoadId }) {
+  const zoom = useMapZoom();
+
   // The selected road is drawn last so it sits above its neighbours.
   const ordered = selectedRoadId
     ? [...roads.filter((r) => r.id !== selectedRoadId), ...roads.filter((r) => r.id === selectedRoadId)]
     : roads;
 
+  // Final line weight for a road at the current zoom (the selected road is drawn 2px heavier).
+  const weightFor = (road, status) => roadLineWeight(status, zoom) + (road.id === selectedRoadId ? 2 : 0);
+
+  // White casings, all in one pane below every road line. Non-interactive, so clicks reach the lines.
+  const casings = ordered.flatMap((road) => {
+    const weight = roadCasingWeight(weightFor(road, effectiveRoadStatus(road)));
+    return geometryToPaths(road.geometry).map((path, i) => (
+      <Polyline
+        key={`${road.id}-casing-${i}`}
+        positions={path}
+        interactive={false}
+        pane="road-casing"
+        pathOptions={{ color: CASING_COLOR, weight, opacity: 0.9, lineCap: "round", lineJoin: "round" }}
+      />
+    ));
+  });
+
   return (
     <>
+      <Pane name="road-casing" style={{ zIndex: 399 }}>
+        {casings}
+      </Pane>
+
       {ordered.map((road) => {
-        // One shared rule (theme/status.js): physicalStatus wins; an imported road's default legacy
-        // "OPEN" never reads as accessible; demo roads keep using the legacy `status`.
+        // One shared rule (theme/status.js): the most restrictive recognised stored status wins; an
+        // imported road's default legacy "OPEN" is ignored; demo roads keep their legacy `status`.
         const displayStatus = effectiveRoadStatus(road);
         const statusInfo = roadStatusDisplay(displayStatus);
         const color = statusInfo.hex;
@@ -102,7 +120,7 @@ export default function RoadLayer({ roads = [], onRoadClick, selectedRoadId }) {
         const isBlocked = displayStatus === "BLOCKED";
         const isUnknown = statusInfo.label === "UNKNOWN";
         const isSelected = road.id === selectedRoadId;
-        const baseWeight = WEIGHT[displayStatus] || 3;
+        const lineWeight = weightFor(road, displayStatus);
 
         const tooltip = (
           <Tooltip sticky direction="top">
@@ -112,7 +130,10 @@ export default function RoadLayer({ roads = [], onRoadClick, selectedRoadId }) {
         );
 
         const paths = geometryToPaths(road.geometry);
-        const a11y = a11yProps(road, statusInfo, onRoadClick);
+        const handlers = {
+          click: () => onRoadClick && onRoadClick(road),
+          add: (e) => hideFromAssistiveTech(e.target),
+        };
 
         if (paths.length > 0) {
           return (
@@ -124,7 +145,7 @@ export default function RoadLayer({ roads = [], onRoadClick, selectedRoadId }) {
                     key={`${road.id}-halo-${i}`}
                     positions={path}
                     interactive={false}
-                    pathOptions={{ color: "#1d4ed8", weight: baseWeight + 8, opacity: 0.35 }}
+                    pathOptions={{ color: "#1d4ed8", weight: lineWeight + 8, opacity: 0.35 }}
                   />
                 ))}
               {paths.map((path, i) => (
@@ -133,15 +154,13 @@ export default function RoadLayer({ roads = [], onRoadClick, selectedRoadId }) {
                   positions={path}
                   pathOptions={{
                     color,
-                    weight: isSelected ? baseWeight + 2 : baseWeight,
-                    opacity: isSelected ? 1 : 0.85,
-                    dashArray: isUnknown ? "6 4" : undefined,
+                    weight: lineWeight,
+                    opacity: isSelected ? 1 : 0.9,
+                    dashArray: isUnknown ? UNKNOWN_DASH : undefined,
+                    lineCap: "butt",
                   }}
-                  ref={a11y.apply}
-                  eventHandlers={{
-                    click: () => onRoadClick && onRoadClick(road),
-                    ...a11y.handlers,
-                  }}
+                  ref={hideFromAssistiveTech}
+                  eventHandlers={handlers}
                 >
                   {tooltip}
                   <Popup>
@@ -175,11 +194,8 @@ export default function RoadLayer({ roads = [], onRoadClick, selectedRoadId }) {
                 weight: isSelected ? 4 : isBlocked ? 3 : 2,
                 dashArray: isUnknown ? "3 3" : undefined,
               }}
-              ref={a11y.apply}
-              eventHandlers={{
-                click: () => onRoadClick && onRoadClick(road),
-                ...a11y.handlers,
-              }}
+              ref={hideFromAssistiveTech}
+              eventHandlers={handlers}
             >
               {tooltip}
               <Popup>

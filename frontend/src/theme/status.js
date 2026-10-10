@@ -58,7 +58,9 @@ const TONE = {
     text: "text-neutral-600",
     solid: "bg-neutral-500 text-white",
     dot: "bg-neutral-400",
-    hex: "#94a3b8",
+    // Map line color for UNKNOWN roads. Darker than the former #94a3b8 (1.5-2.2:1 on the OSM basemap) so
+    // unverified roads stay visible; still a neutral gray, never a status color.
+    hex: "#64748b",
   },
   info: {
     badge: "bg-primary-50 text-primary-700 border-primary-200",
@@ -113,12 +115,37 @@ const ROAD_STATUS = {
   UNKNOWN: { glyph: "?", tone: "neutral" },
 };
 
-// Physical statuses that carry real meaning. UNKNOWN is deliberately absent: it means "no information".
-const PHYSICAL_KNOWN = ["OPEN", "RESTRICTED", "HIGH_RISK", "BLOCKED"];
-// Legacy `status` values a demo road may carry (the simulation sets BLOCKED).
-const LEGACY_DEMO_KNOWN = ["OPEN", "RESTRICTED", "RISKY", "HIGH_RISK", "BLOCKED"];
-// Legacy values on an IMPORTED road that are explicit restrictions and must stay visible.
-const LEGACY_IMPORTED_RESTRICTIONS = ["RESTRICTED", "BLOCKED"];
+/**
+ * STORED ROAD STATUS: FRONTEND DISPLAY POLICY (Phase 10)
+ * ------------------------------------------------------
+ * One rule decides the status shown by the map line, the popup badge, the Road Intelligence badge,
+ * the legend swatches and the "Blocked (Stored status)" / "Unverified roads" KPIs, so they can never
+ * disagree. It summarises what is STORED on the road. It is NOT a replacement for the backend
+ * accessibility engine (accessibilityEngine.js), which also weighs weather, SACHET alerts and field
+ * incidents and is shown separately, per selected road, in Road Intelligence.
+ *
+ * Evidence considered (each only when it holds a recognised value):
+ *   physicalStatus, officialStatus, fieldStatus  - OPEN | RESTRICTED | HIGH_RISK | BLOCKED
+ *   legacy `status`                              - BLOCKED and RESTRICTED always count (the landslide
+ *       simulation writes BLOCKED here). OPEN counts only on a demo road (no `source`), where it is that
+ *       road's own state; on an IMPORTED road OPEN is the importer's default and means "no information".
+ * UNKNOWN, missing and unrecognised values are ignored.
+ *
+ * Precedence: the most restrictive recognised value wins, in the same order the backend engine uses
+ * for its state:  BLOCKED > RESTRICTED > HIGH_RISK > OPEN  (never hide a block). With no recognised
+ * evidence the result is UNKNOWN, which is neutral: not blocked, not safe, not accessible.
+ * When sources disagree, roadStatusSources() lists each one so the popup can show the conflict.
+ */
+
+// Most restrictive first. Mirrors determineState() in backend/src/services/accessibilityEngine.js.
+export const STATUS_PRECEDENCE = ["BLOCKED", "RESTRICTED", "HIGH_RISK", "OPEN"];
+
+const STATUS_FIELDS = [
+  { key: "physicalStatus", label: "Physical" },
+  { key: "officialStatus", label: "Official" },
+  { key: "fieldStatus", label: "Field" },
+];
+const LEGACY_LABEL = "Stored (legacy / simulated)";
 
 const upper = (v) => (v == null ? "" : String(v).trim().toUpperCase());
 
@@ -127,26 +154,60 @@ export function isImportedRoad(road) {
   return typeof road?.source === "string" && road.source.trim() !== "";
 }
 
-/**
- * The single status the map line, popup badge and Road Intelligence badge should all show.
- * Returns one of OPEN | RESTRICTED | RISKY | HIGH_RISK | BLOCKED | UNKNOWN; never invents OPEN.
- *
- *  1. A recognised, non-UNKNOWN physicalStatus always wins.
- *  2. Imported road: the importer's default legacy status "OPEN" means "no information", so it must not
- *     override an UNKNOWN/missing physicalStatus (result UNKNOWN). An explicit legacy RESTRICTED/BLOCKED
- *     is kept visible.
- *  3. Demo road (no source): legacy `status` still drives the status, as before (simulated BLOCKED works).
- *  4. Missing or unrecognised values resolve to UNKNOWN.
- */
-export function effectiveRoadStatus(road) {
-  const physical = upper(road?.physicalStatus);
-  if (PHYSICAL_KNOWN.includes(physical)) return physical;
-
-  const legacy = upper(road?.status);
-  if (isImportedRoad(road)) {
-    return LEGACY_IMPORTED_RESTRICTIONS.includes(legacy) ? legacy : "UNKNOWN";
+/** The explicit statuses that count as evidence for this road, as [{ key, label, status }]. */
+export function roadStatusSources(road) {
+  const sources = [];
+  for (const { key, label } of STATUS_FIELDS) {
+    const status = upper(road?.[key]);
+    if (STATUS_PRECEDENCE.includes(status)) sources.push({ key, label, status });
   }
-  return LEGACY_DEMO_KNOWN.includes(legacy) ? legacy : "UNKNOWN";
+  const legacy = upper(road?.status);
+  if (legacy === "BLOCKED" || legacy === "RESTRICTED" || (legacy === "OPEN" && !isImportedRoad(road))) {
+    sources.push({ key: "status", label: LEGACY_LABEL, status: legacy });
+  }
+  return sources;
+}
+
+/** The single stored status to display: the most restrictive recognised source, else UNKNOWN. */
+export function effectiveRoadStatus(road) {
+  let best = "UNKNOWN";
+  let bestRank = Infinity;
+  for (const { status } of roadStatusSources(road)) {
+    const rank = STATUS_PRECEDENCE.indexOf(status);
+    if (rank < bestRank) {
+      best = status;
+      bestRank = rank;
+    }
+  }
+  return best;
+}
+
+/** `conflict` is true when recognised sources disagree (e.g. physical OPEN but field BLOCKED). */
+export function roadStatusConflict(road) {
+  const sources = roadStatusSources(road);
+  return {
+    conflict: new Set(sources.map((s) => s.status)).size > 1,
+    sources,
+    effective: effectiveRoadStatus(road),
+  };
+}
+
+/** Counts of roads by effective stored status, using the same rule as the map. */
+export function summarizeRoadStatuses(roads) {
+  const counts = { BLOCKED: 0, RESTRICTED: 0, HIGH_RISK: 0, OPEN: 0, UNKNOWN: 0 };
+  let total = 0;
+  for (const road of Array.isArray(roads) ? roads : []) {
+    counts[effectiveRoadStatus(road)] += 1;
+    total += 1;
+  }
+  return {
+    total,
+    blocked: counts.BLOCKED,
+    restricted: counts.RESTRICTED,
+    highRisk: counts.HIGH_RISK,
+    open: counts.OPEN,
+    unknown: counts.UNKNOWN,
+  };
 }
 
 /** Raw wording is preserved: a stored "OPEN" is shown as OPEN, not as ACCESSIBLE. */
