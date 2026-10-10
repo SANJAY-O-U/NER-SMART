@@ -1,4 +1,5 @@
 import { RefreshIcon } from "./icons";
+import { writesEnabled } from "../services/api";
 
 /** Top command-center header: title, dashboard-active indicator, and the refresh / demo-reset actions. */
 export default function Header({ onRefresh, refreshing, onResetDemo, resetting, resetError }) {
@@ -17,6 +18,10 @@ export default function Header({ onRefresh, refreshing, onResetDemo, resetting, 
           </h1>
           <p className="hidden md:block text-xs text-slate-500 leading-tight truncate">
             NER SMART · North-East Essential Route Intelligence
+          </p>
+          {/* Phones: the sidebar (which carries the mode chip) is hidden below md, so show the mode here as text. */}
+          <p className="md:hidden text-2xs font-bold tracking-wide leading-tight text-slate-600 truncate">
+            {writesEnabled ? "WRITE MODE" : "READ-ONLY"}
           </p>
         </div>
       </div>
