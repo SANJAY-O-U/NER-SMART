@@ -1,5 +1,6 @@
 import { CriticalKPI, CompactKPI } from "./KPICard";
 import { BanIcon, AlertTriangleIcon } from "./icons";
+import { summarizeRoadStatuses } from "../theme/status";
 
 const ACTIVE_STATUSES = ["IN_TRANSIT", "PENDING", "ACTIVE"];
 const RESOLVED_INCIDENT_STATUSES = ["RESOLVED"];
@@ -10,8 +11,8 @@ const RESOLVED_INCIDENT_STATUSES = ["RESOLVED"];
  * the same MEDIUM/HIGH thresholds used by the backend risk formula
  * (31-60 = MEDIUM, 61-100 = HIGH) — see RISK FORMULA in the architecture doc.
  *
- * Phase 6F: this baseline flood/landslide average and the "Blocked" KPI's
- * `road.status` field below are BOTH distinct from the authoritative,
+ * Phase 6F: this baseline flood/landslide average and the stored-status counts below
+ * (Blocked, Unverified) are BOTH distinct from the authoritative,
  * evidence-based accessibility engine (accessibilityEngine.js, surfaced
  * per-road in RoadRiskCard's "Operational Accessibility" block once a
  * road is selected — never batch-computed across all roads here, per the
@@ -39,9 +40,12 @@ export default function KPISection({ shipments, roads, vehicles, incidents, aler
 
   const atRiskRoads = safeRoads.filter((r) => roadRiskScore(r) >= 31).length;
 
-  const blockedRoads = safeRoads.filter(
-    (r) => (r.status || "").toUpperCase() === "BLOCKED"
-  ).length;
+  // Phase 10: counted with the SAME stored-status policy the map, popup and legend use
+  // (theme/status.js), so the tile can never disagree with what is drawn. It is stored status, not an
+  // accessibility verdict. UNKNOWN is its own count, never folded into blocked or open.
+  const roadStatusSummary = summarizeRoadStatuses(safeRoads);
+  const blockedRoads = roadStatusSummary.blocked;
+  const unverifiedRoads = roadStatusSummary.unknown;
 
   const activeIncidents = safeIncidents.filter(
     (i) => !RESOLVED_INCIDENT_STATUSES.includes((i.status || "").toUpperCase())
@@ -55,9 +59,9 @@ export default function KPISection({ shipments, roads, vehicles, incidents, aler
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-3">
       <div className="grid grid-cols-2 gap-3">
         <CriticalKPI
-          label="Blocked (Manual)"
+          label="Blocked (Stored status)"
           value={blockedRoads}
-          hint="Roads whose stored status is BLOCKED"
+          hint="Roads whose stored status (physical, official, field or simulated) is BLOCKED. Not an accessibility verdict."
           tone="block"
           active={blockedRoads > 0}
           Icon={BanIcon}
@@ -77,11 +81,18 @@ export default function KPISection({ shipments, roads, vehicles, incidents, aler
         <CompactKPI label="Active Alerts" value={safeAlerts.length} dot={safeAlerts.length > 0 ? "warn" : undefined} />
         <CompactKPI label="Active Shipments" value={activeShipments} />
         <CompactKPI label="Roads" value={safeRoads.length} />
+        <CompactKPI
+          label="Unverified Roads"
+          value={unverifiedRoads}
+          hint="Roads with no verified status (stored status UNKNOWN). Not blocked, and not known to be safe or accessible."
+          dot={unverifiedRoads > 0 ? "neutral" : undefined}
+        />
         <CompactKPI label="Vehicles" value={safeVehicles.length} />
         <CompactKPI
           label="Data Sources"
           value={safeDataSources.length ? `${liveSourceCount}/${safeDataSources.length} Live` : "—"}
           hint="Sources the backend currently reports as LIVE"
+          className="col-span-2 sm:col-span-3"
         />
       </dl>
     </div>
