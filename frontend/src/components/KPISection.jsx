@@ -1,4 +1,5 @@
-import KPICard from "./KPICard";
+import { CriticalKPI, CompactKPI } from "./KPICard";
+import { BanIcon, AlertTriangleIcon } from "./icons";
 
 const ACTIVE_STATUSES = ["IN_TRANSIT", "PENDING", "ACTIVE"];
 const RESOLVED_INCIDENT_STATUSES = ["RESOLVED"];
@@ -48,21 +49,41 @@ export default function KPISection({ shipments, roads, vehicles, incidents, aler
 
   const liveSourceCount = safeDataSources.filter((s) => s.status === "LIVE").length;
 
+  // Presentation only: the P0 counts (blocked roads, active incidents) are prominent tiles; the
+  // supporting counts are a dense grid beside them. Every value is the one computed above.
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
-      <KPICard label="Roads" value={safeRoads.length} color="slate" icon="🛣️" />
-      <KPICard label="At Risk (Baseline)" value={atRiskRoads} color="amber" icon="⚠️" />
-      <KPICard label="Blocked (Manual)" value={blockedRoads} color="red" icon="⛔" />
-      <KPICard label="Active Incidents" value={activeIncidents} color="red" icon="🚧" />
-      <KPICard label="Active Alerts" value={safeAlerts.length} color="amber" icon="🔔" />
-      <KPICard label="Active Shipments" value={activeShipments} color="brand" icon="🚚" />
-      <KPICard label="Vehicles" value={safeVehicles.length} color="slate" icon="📍" />
-      <KPICard
-        label="Data Sources"
-        value={safeDataSources.length ? `${liveSourceCount}/${safeDataSources.length} Live` : "—"}
-        color="emerald"
-        icon="📡"
-      />
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-3">
+      <div className="grid grid-cols-2 gap-3">
+        <CriticalKPI
+          label="Blocked (Manual)"
+          value={blockedRoads}
+          hint="Roads whose stored status is BLOCKED"
+          tone="block"
+          active={blockedRoads > 0}
+          Icon={BanIcon}
+        />
+        <CriticalKPI
+          label="Active Incidents"
+          value={activeIncidents}
+          hint="Reported and not yet resolved"
+          tone="block"
+          active={activeIncidents > 0}
+          Icon={AlertTriangleIcon}
+        />
+      </div>
+
+      <dl className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-slate-200 border border-slate-200 rounded-lg overflow-hidden shadow-panel">
+        <CompactKPI label="At Risk (Baseline)" value={atRiskRoads} hint="Roads with baseline flood/landslide risk of 31 or more" dot={atRiskRoads > 0 ? "warn" : undefined} />
+        <CompactKPI label="Active Alerts" value={safeAlerts.length} dot={safeAlerts.length > 0 ? "warn" : undefined} />
+        <CompactKPI label="Active Shipments" value={activeShipments} />
+        <CompactKPI label="Roads" value={safeRoads.length} />
+        <CompactKPI label="Vehicles" value={safeVehicles.length} />
+        <CompactKPI
+          label="Data Sources"
+          value={safeDataSources.length ? `${liveSourceCount}/${safeDataSources.length} Live` : "—"}
+          hint="Sources the backend currently reports as LIVE"
+        />
+      </dl>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { MapContainer, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -7,6 +7,7 @@ import VehicleLayer from "./VehicleLayer";
 import IncidentLayer from "./IncidentLayer";
 import FacilityLayer from "./FacilityLayer";
 import { Polyline } from "react-leaflet";
+import MapLegend from "./MapLegend";
 
 /**
  * MapView
@@ -63,6 +64,7 @@ import { Polyline } from "react-leaflet";
  * }>
  *
  * onRoadClick?: (road) => void   // optional, bubbles road clicks to parent
+ * selectedRoadId?: string        // optional, highlights that road (parent owns the selection)
  * center?: [number, number]      // default: Guwahati [26.1445, 91.7362]
  * zoom?: number                  // default: 7
  * heightClassName?: string       // default: "h-[600px]" (Tailwind)
@@ -87,15 +89,49 @@ export default function MapView({
   incidents = [],
   facilities = [],
   onRoadClick,
+  selectedRoadId,
   center = DEFAULT_CENTER,
   zoom = DEFAULT_ZOOM,
   heightClassName = "h-[600px]",
   routeGeometry = null, // Phase 4C: optional real route {type:'LineString', coordinates:[[lng,lat],...]}
+  bare = false, // presentation only: drop the frame when the parent panel already provides one
 }) {
+  // Presentation-only layer visibility; every layer starts visible, as before.
+  const [hidden, setHidden] = useState({});
+  const toggleLayer = (key) => setHidden((h) => ({ ...h, [key]: !h[key] }));
+  const show = (key) => !hidden[key];
+
+  const hasRoute = Boolean(routeGeometry && routeGeometry.coordinates);
+  // A toggle is offered only for a layer that has something to show.
+  const layers = [
+    { key: "roads", label: "Roads", count: roads.length },
+    { key: "vehicles", label: "Vehicles", count: vehicles.length },
+    { key: "incidents", label: "Incidents", count: incidents.length },
+    { key: "facilities", label: "Facilities", count: facilities.length },
+    { key: "route", label: "Route line", count: hasRoute ? 1 : 0 },
+  ]
+    .filter((l) => l.count > 0)
+    .map((l) => ({ ...l, visible: show(l.key) }));
+
   return (
-    <div className={`w-full ${heightClassName} rounded-lg overflow-hidden border border-slate-200 relative`}>
-      {/* Prototype disclaimer — required per project scope */}
-      <div className="absolute z-[1000] top-2 left-1/2 -translate-x-1/2 bg-white/90 text-slate-600 text-xs px-3 py-1 rounded-full border border-slate-200 shadow-sm pointer-events-none">
+    // `isolate` gives the map its own stacking context so Leaflet's high z-index panes and
+    // controls can never paint over the sticky header.
+    <div
+      role="region"
+      aria-label="Map of roads, incidents and vehicles"
+      className={`w-full ${heightClassName} overflow-hidden relative isolate ${bare ? "" : "rounded-lg border border-slate-200"}`}
+    >
+      {/* Keyboard alternative to the map: road lines cannot take keyboard focus, so this jumps to the
+          Road Intelligence road selector, which selects a road through the same state as a map click. */}
+      <a
+        href="#road-select"
+        className="sr-only focus:not-sr-only absolute z-[1100] top-2 left-2 rounded-md border border-primary-600 bg-white px-3 py-1.5 text-xs font-semibold text-primary-700 shadow-raised"
+      >
+        Skip map: choose a road in Road Intelligence
+      </a>
+      {/* Prototype disclaimer — required per project scope. Wraps on narrow screens and keeps clear of
+          the zoom control (left) instead of overlapping it. */}
+      <div className="absolute z-[1000] top-2 left-12 right-2 sm:right-12 mx-auto w-fit max-w-[calc(100%-3.5rem)] sm:max-w-[calc(100%-6rem)] bg-white/90 text-slate-600 text-xs leading-snug text-center px-3 py-1 rounded-2xl border border-slate-200 shadow-sm pointer-events-none">
         Prototype demo data — not official government GIS data
       </div>
 
@@ -110,17 +146,19 @@ export default function MapView({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        <RoadLayer roads={roads} onRoadClick={onRoadClick} />
-        <VehicleLayer vehicles={vehicles} />
-        <IncidentLayer incidents={incidents} />
-        <FacilityLayer facilities={facilities} />
-        {routeGeometry && routeGeometry.coordinates && (
+        {show("roads") && <RoadLayer roads={roads} onRoadClick={onRoadClick} selectedRoadId={selectedRoadId} />}
+        {show("vehicles") && <VehicleLayer vehicles={vehicles} />}
+        {show("incidents") && <IncidentLayer incidents={incidents} />}
+        {show("facilities") && <FacilityLayer facilities={facilities} />}
+        {hasRoute && show("route") && (
           <Polyline
             positions={routeGeometry.coordinates.map(([lng, lat]) => [lat, lng])}
             pathOptions={{ color: "#7c3aed", weight: 5, opacity: 0.9, dashArray: "1 8" }}
           />
         )}
       </MapContainer>
+
+      <MapLegend layers={layers} onToggle={toggleLayer} showRoutes={hasRoute && show("route")} />
     </div>
   );
 }

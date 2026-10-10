@@ -1,5 +1,6 @@
 import { useState } from "react";
 import StatusBadge from "./StatusBadge";
+import { accessibilityDisplay, severityDisplay } from "../theme/status";
 import { getIncidentImpact } from "../services/api";
 
 const STATUS_FLOW = {
@@ -14,14 +15,6 @@ const SOURCE_LABEL = {
   DRIVER_APP: "Driver App",
   SIMULATION: "Simulation",
   AUTHORITY: "Authority",
-};
-
-const STATE_COLOR = {
-  OPEN: "text-emerald-700",
-  RESTRICTED: "text-amber-700",
-  HIGH_RISK: "text-orange-700",
-  BLOCKED: "text-red-700",
-  UNKNOWN: "text-slate-500",
 };
 
 function timeAgo(timestamp) {
@@ -40,16 +33,16 @@ function timeAgo(timestamp) {
  * GET /api/incidents/:id/impact — every value shown comes from the
  * backend's actual current state, never hardcoded.
  */
-function OperationalImpactPanel({ impact, loading, error }) {
-  if (loading) return <p className="text-xs text-slate-400 py-2">Loading impact…</p>;
-  if (error) return <p className="text-xs text-red-500 py-2">{error}</p>;
+function OperationalImpactPanel({ id, impact, loading, error }) {
+  if (loading) return <p id={id} role="status" className="text-xs text-slate-600 py-2">Loading impact…</p>;
+  if (error) return <p id={id} role="alert" className="text-xs text-block-700 py-2">{error}</p>;
   if (!impact) return null;
 
   const { road, accessibility, accessibilityWithoutThisIncident, alerts, routeImpactNote } = impact;
 
   return (
-    <div className="text-xs bg-slate-50 border border-slate-200 rounded-md p-2.5 space-y-2 mt-1">
-      <p className="font-semibold text-slate-700">Operational Impact</p>
+    <div id={id} className="text-xs bg-primary-50/50 border border-primary-200 rounded-md p-2.5 space-y-2 mt-1">
+      <p className="font-semibold text-slate-800 uppercase tracking-wide text-2xs">Operational Impact</p>
 
       {road ? (
         <div>
@@ -61,7 +54,7 @@ function OperationalImpactPanel({ impact, loading, error }) {
               <p>
                 Accessibility:{" "}
                 {accessibilityWithoutThisIncident && (
-                  <span className="text-slate-400 line-through mr-1">
+                  <span className="text-slate-500 line-through mr-1">
                     {accessibilityWithoutThisIncident.accessibilityScore ?? "—"}
                   </span>
                 )}
@@ -72,11 +65,11 @@ function OperationalImpactPanel({ impact, loading, error }) {
               <p>
                 State:{" "}
                 {accessibilityWithoutThisIncident && accessibilityWithoutThisIncident.state !== accessibility.state && (
-                  <span className={`font-medium mr-1 ${STATE_COLOR[accessibilityWithoutThisIncident.state] || STATE_COLOR.UNKNOWN}`}>
+                  <span className={`font-medium mr-1 ${accessibilityDisplay(accessibilityWithoutThisIncident.state).text}`}>
                     {accessibilityWithoutThisIncident.state} →
                   </span>
                 )}
-                <span className={`font-bold ${STATE_COLOR[accessibility.state] || STATE_COLOR.UNKNOWN}`}>
+                <span className={`font-bold ${accessibilityDisplay(accessibility.state).text}`}>
                   {accessibility.state}
                 </span>{" "}
                 · confidence {accessibility.confidence || "—"}
@@ -97,16 +90,16 @@ function OperationalImpactPanel({ impact, loading, error }) {
           <ul className="space-y-0.5">
             {alerts.map((a) => (
               <li key={a.id} className="text-slate-500">
-                ⚠ {a.message}
+                <span aria-hidden="true">⚠</span> {a.message}
               </li>
             ))}
           </ul>
         </div>
       ) : (
-        <p className="text-slate-400">No alerts generated for this incident yet.</p>
+        <p className="text-slate-500">No alerts generated for this incident yet.</p>
       )}
 
-      <p className="text-slate-400 italic pt-1 border-t border-slate-200">{routeImpactNote}</p>
+      <p className="text-slate-500 italic pt-1 border-t border-slate-200">{routeImpactNote}</p>
     </div>
   );
 }
@@ -159,34 +152,37 @@ export default function IncidentPanel({ incidents, onUpdateStatus, updatingId, u
   );
 
   return (
-    <ul className="divide-y divide-slate-100 max-h-96 overflow-y-auto">
+    <ul className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
       {!onUpdateStatus && (
-        <li className="pb-2 text-[11px] text-slate-500">
+        <li className="pb-2 text-xs text-slate-600 bg-neutral-50 border border-neutral-200 rounded-md px-2.5 py-1.5 mb-2">
           Read-only in this deployment — incident status changes are not available from this dashboard.
         </li>
       )}
-      {updateError && <li className="py-2 text-xs text-red-600">{updateError}</li>}
+      {updateError && <li role="alert" className="py-2 text-xs font-medium text-block-700">{updateError}</li>}
       {sorted.map((incident) => {
         const flow = STATUS_FLOW[incident.status];
         const ai = incident.aiResult;
         const isExpanded = expandedId === incident.id;
         return (
-          <li key={incident.id} className="py-3 space-y-1.5">
+          <li
+            key={incident.id}
+            className={`rounded-md border border-slate-200 border-l-4 bg-white p-3 space-y-1.5 ${severityDisplay(incident.severity).bar}`}
+          >
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-slate-800">{incident.type}</span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-semibold text-slate-900">{incident.type}</span>
                 <StatusBadge status={incident.severity} />
                 {incident.source === "DRIVER_APP" && (
-                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                  <span className="text-2xs font-semibold px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-700 border border-neutral-200">
                     DRIVER REPORT
                   </span>
                 )}
                 {incident.locationMode && (
                   <span
-                    className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                    className={`text-2xs font-semibold px-1.5 py-0.5 rounded ${
                       incident.locationMode === "LIVE_GPS"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-brand-100 text-brand-700"
+                        ? "bg-ok-50 text-ok-700 border border-ok-200"
+                        : "bg-neutral-100 text-neutral-700 border border-neutral-300"
                     }`}
                   >
                     {incident.locationMode === "LIVE_GPS" ? "LIVE GPS" : "NER DEMO"}
@@ -197,51 +193,56 @@ export default function IncidentPanel({ incidents, onUpdateStatus, updatingId, u
             </div>
 
             {incident.roadName && (
-              <p className="text-xs text-slate-500">Road: {incident.roadName}</p>
+              <p className="text-xs text-slate-600">Road: <span className="font-medium text-slate-700">{incident.roadName}</span></p>
             )}
 
             {incident.description && (
-              <p className="text-sm text-slate-600">{incident.description}</p>
+              <p className="text-sm text-slate-700">{incident.description}</p>
             )}
 
             {ai && ai.classification && (
-              <div className="text-xs bg-slate-50 border border-slate-200 rounded-md p-2 space-y-0.5">
+              <div className="text-xs bg-neutral-50 border border-neutral-200 rounded-md p-2 space-y-0.5">
                 <p>
                   <span className="text-slate-500">
                     {ai.source === "REAL_AI" ? "AI classification:" : "Classification (heuristic):"}
                   </span>{" "}
                   <span className="font-semibold text-slate-700">{ai.classification}</span>
                   {ai.confidence !== null && ai.confidence !== undefined && (
-                    <span className="text-slate-400"> ({Math.round(ai.confidence * 100)}% confidence)</span>
+                    <span className="text-slate-500"> ({Math.round(ai.confidence * 100)}% confidence)</span>
                   )}
                 </p>
                 {ai.summary && <p className="text-slate-600">{ai.summary}</p>}
                 {ai.rationale && <p className="text-slate-500 italic">{ai.rationale}</p>}
-                <p className="text-slate-400">
+                <p className="text-slate-500">
                   {ai.source === "REAL_AI" ? "Live AI analysis" : "Deterministic keyword fallback — no live AI model configured"}
                   {" — AI assistance only, not the road's official status"}
                 </p>
               </div>
             )}
 
-            <div className="flex items-center justify-between pt-1">
-              <span className="text-xs text-slate-400">
+            <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
+              <span className="text-xs text-slate-600" title={(incident.timestamp || incident.createdAt) ? new Date(incident.timestamp || incident.createdAt).toLocaleString() : undefined}>
                 {SOURCE_LABEL[incident.source] || incident.source} · {timeAgo(incident.timestamp || incident.createdAt)}
               </span>
               <div className="flex items-center gap-2">
                 {incident.roadId && (
                   <button
+                    type="button"
                     onClick={() => toggleImpact(incident.id)}
-                    className="text-xs font-medium px-2.5 py-1 rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50 transition"
+                    aria-expanded={isExpanded}
+                    aria-controls={isExpanded ? `incident-impact-${incident.id}` : undefined}
+                    className="text-xs font-semibold px-2.5 py-1 rounded-md border border-primary-500 text-primary-700 hover:bg-primary-50 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                   >
                     {isExpanded ? "Hide Impact" : "View Impact"}
                   </button>
                 )}
                 {flow && onUpdateStatus && (
                   <button
+                    type="button"
                     onClick={() => onUpdateStatus(incident.id, flow.next)}
+                    aria-label={`${flow.label}: ${incident.type || "incident"}`}
                     disabled={updatingId === incident.id}
-                    className="text-xs font-semibold px-2.5 py-1 rounded-md bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-50 transition"
+                    className="text-xs font-semibold px-2.5 py-1 rounded-md bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1"
                   >
                     {updatingId === incident.id ? "Updating…" : flow.label}
                   </button>
@@ -251,6 +252,7 @@ export default function IncidentPanel({ incidents, onUpdateStatus, updatingId, u
 
             {isExpanded && (
               <OperationalImpactPanel
+                id={`incident-impact-${incident.id}`}
                 impact={impactCache[incident.id]}
                 loading={impactLoading === incident.id}
                 error={impactLoading === incident.id ? null : impactError}

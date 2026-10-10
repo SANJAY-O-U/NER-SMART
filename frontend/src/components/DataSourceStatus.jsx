@@ -3,7 +3,7 @@ const STATUS_STYLE = {
   CACHED: "bg-slate-200 text-slate-700",
   STALE: "bg-amber-100 text-amber-700",
   UNAVAILABLE: "bg-slate-200 text-slate-600",
-  DEMO: "bg-brand-100 text-brand-700",
+  DEMO: "bg-brand-50 text-brand-700 border border-brand-200",
 };
 
 function timeAgo(timestamp) {
@@ -33,18 +33,18 @@ export default function DataSourceStatus({ sources }) {
     <ul className="divide-y divide-slate-100">
       {safeSources.map((s) => (
         <li key={s.name} className="py-2 space-y-0.5">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <span className="text-sm font-medium text-slate-700">{s.name.replace(/_/g, " ")}</span>
-            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${STATUS_STYLE[s.status] || STATUS_STYLE.UNAVAILABLE}`}>
+            <span className={`text-2xs font-semibold px-2 py-0.5 rounded ${STATUS_STYLE[s.status] || STATUS_STYLE.UNAVAILABLE}`}>
               {s.status}
             </span>
           </div>
-          {s.coverage && <p className="text-xs text-slate-500">{s.coverage}</p>}
-          <div className="flex items-center justify-between text-[11px] text-slate-400">
+          {s.coverage && <p className="text-xs text-slate-600">{s.coverage}</p>}
+          <div className="flex items-center justify-between gap-2 flex-wrap text-2xs text-slate-600">
             <span>{s.source}</span>
             {timeAgo(s.lastUpdated) && <span>{timeAgo(s.lastUpdated)}</span>}
           </div>
-          {s.error && <p className="text-[11px] text-amber-600 mt-0.5">{s.error}</p>}
+          {s.error && <p className="text-2xs text-warn-700 mt-0.5">{s.error}</p>}
         </li>
       ))}
     </ul>

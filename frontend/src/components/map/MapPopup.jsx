@@ -1,4 +1,5 @@
 import React from "react";
+import { roadStatusDisplay, riskLevelDisplay, effectiveRoadStatus } from "../../theme/status";
 
 /**
  * MapPopup
@@ -22,48 +23,37 @@ function Row({ label, value }) {
 
 function RiskBadge({ risk }) {
   if (risk === undefined || risk === null) return null;
-  let color = "bg-emerald-100 text-emerald-700";
-  let label = "LOW";
-  if (risk > 60) {
-    color = "bg-red-100 text-red-700";
-    label = "HIGH";
-  } else if (risk > 30) {
-    color = "bg-amber-100 text-amber-700";
-    label = "MEDIUM";
-  }
+  const level = riskLevelDisplay(risk);
   return (
-    <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${color}`}>
-      {label} ({risk})
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-semibold ${level.badge}`}>
+      <span aria-hidden="true">{level.glyph}</span>
+      {level.label} ({risk})
     </span>
   );
 }
 
 function StatusBadge({ status }) {
-  const map = {
-    OPEN: "bg-emerald-100 text-emerald-700",
-    RISKY: "bg-amber-100 text-amber-700",
-    BLOCKED: "bg-red-100 text-red-700",
-  };
-  const cls = map[status] || "bg-slate-100 text-slate-700";
+  const info = roadStatusDisplay(status);
   return (
-    <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${cls}`}>
-      {status || "UNKNOWN"}
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-semibold ${info.badge}`}>
+      <span aria-hidden="true">{info.glyph}</span>
+      {info.label}
     </span>
   );
 }
 
-export default function MapPopup({ type, data }) {
+export default function MapPopup({ type, data, linkToIntelligence = false }) {
   if (!data) return null;
 
   if (type === "road") {
+    const status = effectiveRoadStatus(data);
     return (
-      <div className="min-w-[190px]">
-        <div className="font-semibold text-slate-900 mb-1">{data.name || "Unnamed Road"}</div>
-        <Row label="Road ID" value={data.id} />
-        <div className="flex justify-between items-center py-0.5">
-          <span className="text-slate-500 text-sm">Status</span>
-          <StatusBadge status={data.physicalStatus && data.physicalStatus !== "UNKNOWN" ? data.physicalStatus : data.status} />
+      <div className="min-w-[190px] max-w-[260px]">
+        <div className="font-semibold text-base leading-tight text-slate-900">{data.name || "Unnamed Road"}</div>
+        <div className="mt-1 mb-1.5">
+          <StatusBadge status={status} />
         </div>
+        <Row label="Road ID" value={data.id} />
         <Row label="Flood risk" value={data.floodRisk} />
         <Row label="Landslide risk" value={data.landslideRisk} />
         <div className="flex justify-between items-center py-0.5">
@@ -74,11 +64,19 @@ export default function MapPopup({ type, data }) {
           <>
             <Row label="Source" value={data.source.split(' — ')[0].split(' (')[0]} />
             {data.physicalStatus === "UNKNOWN" && (
-              <p className="text-[11px] text-slate-400 mt-1 italic">
+              <p className="text-2xs text-slate-600 mt-1 italic">
                 Closure status not verified — imported geometry only.
               </p>
             )}
           </>
+        )}
+        {linkToIntelligence && (
+          <a
+            href="#road-intelligence"
+            className="mt-2 inline-block text-xs font-semibold text-primary-700 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded"
+          >
+            View in Road Intelligence ↓
+          </a>
         )}
       </div>
     );
